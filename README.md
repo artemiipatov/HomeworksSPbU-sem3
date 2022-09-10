@@ -1,2 +1,2 @@
 # HomeworksSPbU-sem3
-SPbU homeworks semester 2
+SPbU homeworks semester 3
