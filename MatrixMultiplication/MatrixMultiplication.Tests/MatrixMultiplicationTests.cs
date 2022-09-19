@@ -1,7 +1,7 @@
+namespace MatrixMultiplication.Tests;
+
 using System.IO;
 using NUnit.Framework;
-
-namespace MatrixMultiplication.Tests;
 
 public class Tests
 {
@@ -20,15 +20,17 @@ public class Tests
         var matrix1 = new DenseMatrix("matrix1.txt");
         var matrix2 = new DenseMatrix("matrix2.txt");
         Assert.AreEqual(matrix1.Matrix, new[,] { { 10, 4, 5 }, { 8, 9, 1 } });
-        Assert.AreEqual(matrix2.Matrix, new[,] { { 2, 9 }, { 1, 7 }, {4, 19} });
+        Assert.AreEqual(matrix2.Matrix, new[,] { { 2, 9 }, { 1, 7 }, { 4, 19 } });
+        File.Delete("matrix1.txt");
+        File.Delete("matrix2.txt");
     }
     
     [Test]
     public void SerialCalculationsAreCorrect()
     {
         var correctResult = new[,] { { 44, 213 }, { 29, 154 } };
-        var matrix1 = new DenseMatrix(new[,] { { 10, 4, 5 }, { 8, 9, 1 } }, "matrix1.txt");
-        var matrix2 = new DenseMatrix(new[,] { { 2, 9 }, { 1, 7 }, {4, 19} }, "matrix2.txt");
+        var matrix1 = new DenseMatrix(new[,] { { 10, 4, 5 }, { 8, 9, 1 } });
+        var matrix2 = new DenseMatrix(new[,] { { 2, 9 }, { 1, 7 }, {4, 19} });
         var result = DenseMatrix.MultiplySerially(matrix1, matrix2);
         Assert.AreEqual(correctResult, result.Matrix);
     }
@@ -51,11 +53,11 @@ public class Tests
     [Test]
     public void SerialAndConcurrentCalculationsCanMultiply1X1Matrices()
     {
-        var matrix1 = new DenseMatrix(new[,] { { 9 } }, "matrix1.txt");
-        var matrix2 = new DenseMatrix(new[,] { { 100 } }, "matrix2.txt");
+        var matrix1 = new DenseMatrix(new[,] { { 9 } });
+        var matrix2 = new DenseMatrix(new[,] { { 100 } });
         var result1 = DenseMatrix.MultiplyConcurrently(matrix1, matrix2);
         var result2 = DenseMatrix.MultiplySerially(matrix1, matrix2);
-        Assert.AreEqual(result1.Matrix, new[,] { {900} });
+        Assert.AreEqual(result1.Matrix, new[,] { { 900 } });
         Assert.AreEqual(result1.Matrix, result2.Matrix);
     }
 

@@ -11,7 +11,9 @@ public class DenseMatrix
     public DenseMatrix(string path)
     {
         _matrix = ReadFile(path);
-        this.path = path;
+        NumberOfRows = _matrix.GetLength(0);
+        NumberOfColumns = _matrix.GetLength(1);
+        // Path = path;
     }
 
     /// <summary>
@@ -19,37 +21,37 @@ public class DenseMatrix
     /// </summary>
     /// <param name="matrix">2d array, which represents matrix.</param>
     /// <param name="path">Path to the file, which will contain given matrix.</param>
-    public DenseMatrix(int[,] matrix, string path)
+    public DenseMatrix(int[,] matrix)
     {
         _matrix = matrix;
-        WriteMatrixToFile(matrix, path);
-        this.path = path;
+        NumberOfRows = _matrix.GetLength(0);
+        NumberOfColumns = _matrix.GetLength(1);
+        // WriteMatrixToFile(matrix, path);
+        // Path = path;
     }
 
     /// <summary>
     /// Path to the file with matrix.
     /// </summary>
-    public readonly string path;
+    // public readonly string Path;
     
     private readonly int[,] _matrix;
+    
     /// <summary>
     /// 2d integer array which represents matrix.
     /// </summary>
-    public int[,] Matrix
-    {
-        get { return _matrix; }
-    }
-    
+    public int[,] Matrix => _matrix;
+
     /// <summary>
-    /// Returns number of rows in matrix.
+    /// Rows in matrix.
     /// </summary>
-    public int NumberOfRows() => _matrix.GetLength(0);
+    public int NumberOfRows { get; }
     
     /// <summary>
     /// Returns number of columns in matrix.
     /// </summary>
-    public int NumberOfColumns() => _matrix.GetLength(1);
-
+    public int NumberOfColumns { get; }
+    
     private static int[,] ReadFile(string inputFilePath)
     {
         var fileEnumerable = File.ReadLines(inputFilePath);
@@ -59,12 +61,12 @@ public class DenseMatrix
         var numberOfColumns = fileEnumerator.Current.Split().Length;
         var matrix = new int[numberOfRows, numberOfColumns];
 
-        for (var r = 0; r < numberOfRows; r++)
+        for (var row = 0; row < numberOfRows; row++)
         {
             var line = Array.ConvertAll(fileEnumerator.Current.Split(), int.Parse); 
-            for (var c = 0; c < numberOfColumns; c++)
+            for (var column = 0; column < numberOfColumns; column++)
             {
-                matrix[r, c] = line[c];
+                matrix[row, column] = line[column];
             }
 
             fileEnumerator.MoveNext();
@@ -77,11 +79,11 @@ public class DenseMatrix
     private static void WriteMatrixToFile(int[,] matrix, string path)
     {
         using var file = new StreamWriter(File.Create(path));
-        for (var r = 0; r < matrix.GetLength(0); r++)
+        for (var row = 0; row < matrix.GetLength(0); row++)
         {
-            for (var c = 0; c < matrix.GetLength(1); c++)
+            for (var column = 0; column < matrix.GetLength(1); column++)
             {
-                file.Write(matrix[r, c] + (c == matrix.GetLength(1) - 1 ? (r < matrix.GetLength(0) - 1 ? "\n" : "") : " "));
+                file.Write(matrix[row, column] + (column == matrix.GetLength(1) - 1 ? (row < matrix.GetLength(0) - 1 ? "\n" : "") : " "));
             }
         }
         
@@ -96,10 +98,10 @@ public class DenseMatrix
     /// <returns>Result of matrix multiplication.</returns>
     public static DenseMatrix MultiplyConcurrently(DenseMatrix matrix1, DenseMatrix matrix2)
     {
-        
-        var numberOfThreads = Environment.ProcessorCount / 2;
-        var numberOfRows = matrix1.NumberOfRows();
-        var numberOfColumns = matrix2.NumberOfColumns();
+        var numberOfThreads = Environment.ProcessorCount / 2 <= Math.Max(matrix1.NumberOfRows, matrix2.NumberOfColumns) ? 
+            Environment.ProcessorCount / 2 : Math.Max(matrix1.NumberOfRows, matrix2.NumberOfColumns);
+        var numberOfRows = matrix1.NumberOfRows;
+        var numberOfColumns = matrix2.NumberOfColumns;
         var result = new int[numberOfRows, numberOfColumns];
 
         var rowsThreading = numberOfRows > numberOfColumns;
@@ -125,11 +127,11 @@ public class DenseMatrix
 
             threads[i] = new Thread(() =>
             {
-                for (var r = initialRow; r < lastRow; r++)
+                for (var row = initialRow; row < lastRow; row++)
                 {
-                    for (var c = initialColumn; c < lastColumn; c++)
+                    for (var column = initialColumn; column < lastColumn; column++)
                     {
-                        result[r, c] = DotProduct(matrix1, matrix2, r, c);
+                        result[row, column] = DotProduct(matrix1, matrix2, row, column);
                     }
                 }
             });
@@ -145,7 +147,7 @@ public class DenseMatrix
             thread.Join();
         }
 
-        return new DenseMatrix(result, "matrix3.txt");
+        return new DenseMatrix(result);
     }
 
     /// <summary>
@@ -156,25 +158,25 @@ public class DenseMatrix
     /// <returns>Result of matrix multiplication.</returns>
     public static DenseMatrix MultiplySerially(DenseMatrix matrix1, DenseMatrix matrix2)
     {
-        var numberOfRows = matrix1.NumberOfRows();
-        var numberOfColumns = matrix2.NumberOfColumns();
+        var numberOfRows = matrix1.NumberOfRows;
+        var numberOfColumns = matrix2.NumberOfColumns;
         var result = new int[numberOfRows, numberOfColumns];
         
-        for (var r = 0; r < numberOfRows; r++)
+        for (var row = 0; row < numberOfRows; row++)
         {
-            for (var c = 0; c < numberOfColumns; c++)
+            for (var column = 0; column < numberOfColumns; column++)
             {
-                result[r, c] = DotProduct(matrix1, matrix2, r, c);
+                result[row, column] = DotProduct(matrix1, matrix2, row, column);
             }
         }
 
-        return new DenseMatrix(result, "matrix3.txt");
+        return new DenseMatrix(result);
     }
 
     private static int DotProduct(DenseMatrix matrix1, DenseMatrix matrix2, int row, int col)
     {
         var result = 0;
-        for (var i = 0; i < matrix1.NumberOfColumns(); i++)
+        for (var i = 0; i < matrix1.NumberOfColumns; i++)
         {
             result += matrix1.Matrix[row, i] * matrix2.Matrix[i, col];
         }
@@ -191,16 +193,16 @@ public class DenseMatrix
     {
         using var file = new StreamWriter(File.Create(path));
 
-        Random rnd = new Random();
+        var rnd = new Random();
 
-        for (var r = 0; r < size.Item1; r++)
+        for (var row = 0; row < size.Item1; row++)
         {
-            for (var c = 0; c < size.Item2; c++)
+            for (var column = 0; column < size.Item2; column++)
             {
-                file.Write(rnd.Next(0, 3) + (c == size.Item2 - 1 ? "" : " "));
+                file.Write(rnd.Next(0, 3) + (column == size.Item2 - 1 ? "" : " "));
             }
 
-            if (r < size.Item1 - 1)
+            if (row < size.Item1 - 1)
             {
                 file.WriteLine();
             }

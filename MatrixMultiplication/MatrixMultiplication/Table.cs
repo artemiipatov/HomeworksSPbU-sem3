@@ -11,7 +11,7 @@ public static class Table
         using var file = new StreamWriter(File.Create(path));
         file.WriteLine("|   size  |         Concurrent Multiplication         |            Serial Multiplication          |");
         file.WriteLine("|---------|------------------|------------------------|------------------|------------------------|");
-        file.WriteLine("|         |  Expected Value  |   Standard Deviation   |  Expected Value  |   Standard Deviation   |");
+        file.WriteLine("|         |Expected Value, ms| Standard Deviation, ms |Expected Value, ms| Standard Deviation, ms |");
         file.WriteLine("|---------|------------------|------------------------|------------------|------------------------|");
         file.Close();
     }
