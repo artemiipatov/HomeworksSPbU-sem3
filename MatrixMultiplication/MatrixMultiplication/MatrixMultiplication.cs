@@ -96,7 +96,8 @@ public class DenseMatrix
     /// <returns>Result of matrix multiplication.</returns>
     public static DenseMatrix MultiplyConcurrently(DenseMatrix matrix1, DenseMatrix matrix2)
     {
-        var numberOfThreads = Environment.ProcessorCount / 3;
+        
+        var numberOfThreads = Environment.ProcessorCount / 2;
         var numberOfRows = matrix1.NumberOfRows();
         var numberOfColumns = matrix2.NumberOfColumns();
         var result = new int[numberOfRows, numberOfColumns];
