@@ -76,7 +76,7 @@ public class DenseMatrix
         return matrix;
     }
 
-    private static void WriteMatrixToFile(int[,] matrix, string path)
+    public static void WriteMatrixToFile(int[,] matrix, string path)
     {
         using var file = new StreamWriter(File.Create(path));
         for (var row = 0; row < matrix.GetLength(0); row++)
