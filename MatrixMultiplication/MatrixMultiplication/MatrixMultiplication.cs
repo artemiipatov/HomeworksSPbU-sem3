@@ -13,7 +13,6 @@ public class DenseMatrix
         _matrix = ReadFile(path);
         NumberOfRows = _matrix.GetLength(0);
         NumberOfColumns = _matrix.GetLength(1);
-        // Path = path;
     }
 
     /// <summary>
@@ -26,14 +25,7 @@ public class DenseMatrix
         _matrix = matrix;
         NumberOfRows = _matrix.GetLength(0);
         NumberOfColumns = _matrix.GetLength(1);
-        // WriteMatrixToFile(matrix, path);
-        // Path = path;
     }
-
-    /// <summary>
-    /// Path to the file with matrix.
-    /// </summary>
-    // public readonly string Path;
     
     private readonly int[,] _matrix;
     
