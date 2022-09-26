@@ -11,7 +11,7 @@ public class LazyConcurrent<T> : ILazy<T>
         _func = func;
     }
 
-    private bool _isCalculated = false;
+    private bool _isCalculated;
     
     private object _locker = new();
     
