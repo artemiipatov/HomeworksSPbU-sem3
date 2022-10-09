@@ -38,8 +38,7 @@ public class MyThreadPool
         private readonly object _resultLocker = new();
 
         private List<Action> _continuations = new();
-        // private readonly Mutex _evaluated = new();
-        
+
         public TResult? Result
         {
             get
@@ -74,7 +73,7 @@ public class MyThreadPool
                     }
                 }
             }
-        } // Подумать, что делать с публичным сеттером, все-таки это не очень правильно с точки зрения инкапсуляции.
+        }
         
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
         {
@@ -101,13 +100,6 @@ public class MyThreadPool
         }
     }
 
-    /*
-     * Continuation можно брать только тогда, когда главный таск выполнен. Может быть, попробовать туда запихнуть монитор или мьютекс какой-нибудь?
-     * Можно вообще держать этот экшен в главном таске и добавлять в очередь только после подсчета результата. Но тогда это будет не совсем на общих основаниях.
-     *
-     *  Нужно добавлять continuation в конец очереди, если главный таск еще не выполнился. 
-     */
-    
     public MyThreadPool(int numberOfThreads)
     {
         _threads = new Thread[numberOfThreads];
@@ -141,10 +133,6 @@ public class MyThreadPool
                 }
             }
             _numberOfTasks.WaitOne();
-            // else
-            // {
-            //     _numberOfTasks.WaitOne();
-            // }
         }
     }
 
