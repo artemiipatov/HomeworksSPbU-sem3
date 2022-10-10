@@ -1,24 +1,29 @@
 ﻿namespace Lazy;
 
 /// <summary>
-/// Lazy that can be used concurrently by multiple threads. It guarantees that there won't be any deadlocks or races.
+/// Lazy that can be used safely by multiple threads. It guarantees that there won't be any deadlocks or races.
 /// </summary>
 /// <typeparam name="T">Return type of a function.</typeparam>
 public class LazyConcurrent<T> : ILazy<T>
 {
+    private bool _isCalculated;
+
+    private object _locker = new();
+
+    private Func<T?> _func;
+
+    private T? _result;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LazyConcurrent{T}"/> class.
+    /// </summary>
+    /// <param name="func">The delegate to be executed lazily.</param>
     public LazyConcurrent(Func<T?> func)
     {
         _func = func;
     }
 
-    private bool _isCalculated;
-    
-    private object _locker = new();
-    
-    private Func<T?> _func;
-
-    private T? _result;
-    
+    /// <inheritdoc/>
     public T? Get()
     {
         lock (_locker)

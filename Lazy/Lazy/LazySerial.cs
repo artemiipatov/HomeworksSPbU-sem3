@@ -6,17 +6,22 @@
 /// <typeparam name="T">Return type of a function.</typeparam>
 public class LazySerial<T> : ILazy<T>
 {
+    private bool _isCalculated = false;
+
+    private readonly Func<T?> _func;
+
+    private T? _result;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LazySerial{T}"/> class.
+    /// </summary>
+    /// <param name="func">The delegate to be executed lazily.</param>
     public LazySerial(Func<T?> func)
     {
         _func = func;
     }
 
-    private bool _isCalculated = false;
-    
-    private readonly Func<T?> _func;
-
-    private T? _result;
-
+    /// <inheritdoc/>
     public T? Get()
     {
         if (_isCalculated)

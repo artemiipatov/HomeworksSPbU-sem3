@@ -1,8 +1,8 @@
 namespace LazyTest;
 
-using NUnit.Framework;
 using System.Threading;
 using Lazy;
+using NUnit.Framework;
 
 public class Tests
 {
@@ -18,14 +18,14 @@ public class Tests
 
         Assert.AreEqual(1, counter);
     }
-    
+
     [Test]
     public void ConcurrentLazyExecutesFunctionOnlyOnce()
     {
         var counter = 0;
         var threads = new Thread[1000];
         ILazy<int> lazy = new LazyConcurrent<int>(() => Interlocked.Increment(ref counter));
-        
+
         for (var i = 0; i < 1000; i++)
         {
             threads[i] = new Thread(() =>
@@ -41,12 +41,12 @@ public class Tests
         {
             thread.Start();
         }
-        
+
         foreach (var thread in threads)
         {
             thread.Join();
         }
-        
+
         Assert.AreEqual(1, counter);
     }
 
@@ -55,7 +55,7 @@ public class Tests
     {
         ILazy<object> lazySerial = new LazySerial<object>(() => null);
         ILazy<object> lazyConcurrent = new LazyConcurrent<object>(() => null);
-         
+
         for (var i = 0; i < 5; i++)
         {
             Assert.IsNull(lazySerial.Get());
@@ -77,7 +77,7 @@ public class Tests
 
             return counter;
         });
-        
+
         for (var i = 0; i < 1000; i++)
         {
             threads[i] = new Thread(() =>
@@ -93,7 +93,7 @@ public class Tests
         {
             thread.Start();
         }
-        
+
         foreach (var thread in threads)
         {
             thread.Join();
