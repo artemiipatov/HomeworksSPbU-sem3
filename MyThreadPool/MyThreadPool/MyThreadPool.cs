@@ -66,6 +66,7 @@ public class MyThreadPool
                         if (tuple.Item2 == null || tuple.Item2())
                         {
                             action = tuple.Item1;
+                            break;
                         }
                     }
                 }
