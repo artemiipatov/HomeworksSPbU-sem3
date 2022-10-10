@@ -7,15 +7,15 @@ public class MyThreadPool
     private readonly Thread[] _threads;
 
     private readonly List<(Action, Func<bool>?)> _queue = new();
-
-    public bool IsTerminated { get; private set; }
-
+    
     public MyThreadPool(int numberOfThreads)
     {
         _threads = new Thread[numberOfThreads];
         StartThreads();
     }
     
+    public bool IsTerminated { get; private set; }
+
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
     {
         if (IsTerminated)
