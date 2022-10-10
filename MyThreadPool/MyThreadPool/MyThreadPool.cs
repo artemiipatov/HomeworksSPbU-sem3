@@ -33,11 +33,11 @@ public class MyThreadPool
             }
         }
 
-        private TResult? _result;
+        private TResult _result;
 
         private readonly object _resultLocker = new();
         
-        public TResult? Result
+        public TResult Result
         {
             get
             {
@@ -150,6 +150,11 @@ public class MyThreadPool
 
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
     {
+        if (IsTerminated)
+        {
+            throw new Exception(); // сделать другое исключение
+        }
+
         IMyTask<TResult> newTask = new MyTask<TResult>(this);
         lock (_queue)
         {
@@ -174,7 +179,7 @@ public class MyThreadPool
     }
 
     private static Func<bool> MakeIsCompletedFunc<TResult>(IMyTask<TResult> task) => () => task.IsCompleted;
-
+    
     private Action WrapFunc<TResult>(IMyTask<TResult> task, Func<TResult> func) => () =>
     {
         var result = func();
