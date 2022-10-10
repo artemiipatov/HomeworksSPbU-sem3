@@ -86,6 +86,7 @@ public class MyThreadPool
                         if (tuple.Item2 == null || tuple.Item2())
                         {
                             action = tuple.Item1;
+                            break;
                         }
                     }
                 }
@@ -120,13 +121,13 @@ public class MyThreadPool
     
     private class MyTask<TResult> : IMyTask<TResult>
     {
+        private readonly MyThreadPool _threadPool; // Подумать над другим способом
+
         private readonly object _locker = new();
 
         private readonly object _resultLocker = new();
 
         private bool _isCompleted;
-
-        private MyThreadPool _threadPool; // Подумать над другим способом
         
         private TResult _result;
 
