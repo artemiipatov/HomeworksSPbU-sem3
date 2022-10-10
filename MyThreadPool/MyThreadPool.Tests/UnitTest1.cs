@@ -33,7 +33,7 @@ public class Tests
         }
 
         // threadPool.Shutdown();
-        
+        Assert.Pass();
         Func<long, string> func = l => l.ToString();
         
         var result = resultArray[9999].ContinueWith<string>(func).Result;

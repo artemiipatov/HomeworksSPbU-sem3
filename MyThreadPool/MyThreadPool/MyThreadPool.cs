@@ -6,14 +6,14 @@ public class MyThreadPool
 
     private readonly Thread[] _threads;
 
-    private readonly List<(Action, Func<bool>?)> _queue = new();
-    
+    private readonly List<(Action, Func<bool>?)> _actionsList = new();
+
     public MyThreadPool(int numberOfThreads)
     {
         _threads = new Thread[numberOfThreads];
         StartThreads();
     }
-    
+
     public bool IsTerminated { get; private set; }
 
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
@@ -24,14 +24,15 @@ public class MyThreadPool
         }
 
         IMyTask<TResult> newTask = new MyTask<TResult>(this);
-        lock (_queue)
+        lock (_actionsList)
         {
-            _queue.Add((WrapFunc(newTask, func), null));
+            _actionsList.Add((WrapFunc(newTask, func), null));
         }
+
         _numberOfTasks.Release();
         return newTask;
     }
-    
+
     public void Shutdown()
     {
         IsTerminated = true;
@@ -51,7 +52,7 @@ public class MyThreadPool
             _threads[i].Start();
         }
     }
-    
+
     private void ThreadActions()
     {
         try
@@ -59,9 +60,9 @@ public class MyThreadPool
             while (true)
             {
                 Action? action = null;
-                lock (_queue)
+                lock (_actionsList)
                 {
-                    foreach (var tuple in _queue)
+                    foreach (var tuple in _actionsList)
                     {
                         if (tuple.Item2 == null || tuple.Item2())
                         {
@@ -80,9 +81,9 @@ public class MyThreadPool
             while (true)
             {
                 Action? action = null;
-                lock (_queue)
+                lock (_actionsList)
                 {
-                    foreach (var tuple in _queue)
+                    foreach (var tuple in _actionsList)
                     {
                         if (tuple.Item2 == null || tuple.Item2())
                         {
@@ -99,27 +100,28 @@ public class MyThreadPool
             }
         }
     }
-    
+
     private void Submit<TResult>(Action action, IMyTask<TResult> mainTask)
     {
         if (IsTerminated)
         {
             throw new Exception(); // сделать другое исключение
         }
-        lock (_queue)
+
+        lock (_actionsList)
         {
-            _queue.Add((action, MakeIsCompletedFunc(mainTask)));
+            _actionsList.Add((action, MakeIsCompletedFunc(mainTask)));
         }
 
         _numberOfTasks.Release();
     }
-    
+
     private Action WrapFunc<TResult>(IMyTask<TResult> task, Func<TResult> func) => () =>
     {
         var result = func();
         task.Result = result;
     };
-    
+
     private class MyTask<TResult> : IMyTask<TResult>
     {
         private readonly MyThreadPool _threadPool; // Подумать над другим способом
@@ -129,7 +131,7 @@ public class MyThreadPool
         private readonly object _resultLocker = new();
 
         private bool _isCompleted;
-        
+
         private TResult _result;
 
         public MyTask(MyThreadPool threadPool)
@@ -146,7 +148,8 @@ public class MyThreadPool
                     return _isCompleted;
                 }
             }
-            set
+
+            private set
             {
                 lock (_locker)
                 {
@@ -166,12 +169,13 @@ public class MyThreadPool
                         Monitor.Wait(_resultLocker);
                     }
                 }
-                
+
                 return _result;
             }
+
             set
             {
-                lock(_resultLocker)
+                lock (_resultLocker)
                 {
                     if (!IsCompleted)
                     {
@@ -182,7 +186,7 @@ public class MyThreadPool
                 }
             }
         }
-        
+
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
         {
             IMyTask<TNewResult> newTask = new MyTask<TNewResult>(_threadPool);
@@ -191,7 +195,7 @@ public class MyThreadPool
                 var task = newTask;
                 task.Result = continuationFunc(Result);
             };
-            
+
             _threadPool.Submit(action, this);
             return newTask;
         }
