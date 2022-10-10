@@ -38,7 +38,7 @@ public class MyThreadPool
         private readonly object _resultLocker = new();
 
         private List<Action> _continuations = new();
-
+        
         public TResult? Result
         {
             get
@@ -111,7 +111,9 @@ public class MyThreadPool
     private readonly Thread[] _threads;
 
     private readonly Queue<Action> _queue = new();
-    
+
+    public bool IsTerminated { get; private set; }
+
     private void StartThreads()
     {
         for (var i = 0; i < _threads.Length; i++)
@@ -123,16 +125,40 @@ public class MyThreadPool
     
     private void ThreadActions()
     {
-        while (true)
+        try
         {
-            lock (_queue)
+            while (true)
             {
-                if (_queue.TryDequeue(out var action))
+                Action? action;
+                bool success;
+                lock (_queue)
                 {
-                    action();
+                    success = _queue.TryDequeue(out action);
                 }
+
+                if (success)
+                {
+                    action!();
+                }
+                _numberOfTasks.WaitOne();
             }
-            _numberOfTasks.WaitOne();
+        }
+        catch (ThreadInterruptedException)
+        {
+            while (true)
+            {
+                lock (_queue)
+                {
+                    if (_queue.TryDequeue(out var action))
+                    {
+                        action();
+                    }
+                    else
+                    {
+                        break;
+                    }
+                } 
+            }
         }
     }
 
@@ -147,8 +173,12 @@ public class MyThreadPool
         return newTask;
     }
 
-    public void Submit(Action action)
+    private void Submit(Action action)
     {
+        if (IsTerminated)
+        {
+            throw new Exception(); // сделать другое исключение
+        }
         lock (_queue)
         {
             _queue.Enqueue(action);
@@ -165,9 +195,10 @@ public class MyThreadPool
 
     public void Shutdown()
     {
+        IsTerminated = true;
         foreach (var thread in _threads)
         {
-            thread.Join();
+            thread.Interrupt();
         }
     }
 }
