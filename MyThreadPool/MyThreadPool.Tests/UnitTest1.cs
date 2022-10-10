@@ -32,7 +32,7 @@ public class Tests
             });
         }
 
-        threadPool.Shutdown();
+        // threadPool.Shutdown();
         
         Func<long, string> func = l => l.ToString();
         

@@ -36,8 +36,6 @@ public class MyThreadPool
         private TResult? _result;
 
         private readonly object _resultLocker = new();
-
-        private List<Action> _continuations = new();
         
         public TResult? Result
         {
@@ -62,14 +60,6 @@ public class MyThreadPool
                         _result = value;
                         IsCompleted = true;
                         Monitor.Pulse(_resultLocker);
-                        
-                        lock(_continuations)
-                        {
-                            foreach (var continuation in _continuations)
-                            {
-                                _threadPool.Submit(continuation);
-                            }
-                        }
                     }
                 }
             }
@@ -84,18 +74,7 @@ public class MyThreadPool
                 task.Result = continuationFunc(Result);
             };
             
-            lock(_continuations)
-            {
-                if (IsCompleted)
-                {
-                    _threadPool.Submit(action);
-                }
-                else
-                {
-                    _continuations.Add(action);
-                }
-            }
-            
+            _threadPool.Submit(action, this);
             return newTask;
         }
     }
@@ -110,7 +89,7 @@ public class MyThreadPool
 
     private readonly Thread[] _threads;
 
-    private readonly Queue<Action> _queue = new();
+    private readonly List<(Action, Func<bool>?)> _queue = new();
 
     public bool IsTerminated { get; private set; }
 
@@ -129,17 +108,19 @@ public class MyThreadPool
         {
             while (true)
             {
-                Action? action;
-                bool success;
+                Action? action = null;
                 lock (_queue)
                 {
-                    success = _queue.TryDequeue(out action);
+                    foreach (var tuple in _queue)
+                    {
+                        if (tuple.Item2 == null || tuple.Item2())
+                        {
+                            action = tuple.Item1;
+                        }
+                    }
                 }
 
-                if (success)
-                {
-                    action!();
-                }
+                action?.Invoke();
                 _numberOfTasks.WaitOne();
             }
         }
@@ -147,17 +128,22 @@ public class MyThreadPool
         {
             while (true)
             {
+                Action? action = null;
                 lock (_queue)
                 {
-                    if (_queue.TryDequeue(out var action))
+                    foreach (var tuple in _queue)
                     {
-                        action();
+                        if (tuple.Item2 == null || tuple.Item2())
+                        {
+                            action = tuple.Item1;
+                        }
                     }
-                    else
-                    {
-                        break;
-                    }
-                } 
+                }
+
+                if (action == null)
+                {
+                    break;
+                }
             }
         }
     }
@@ -167,13 +153,13 @@ public class MyThreadPool
         IMyTask<TResult> newTask = new MyTask<TResult>(this);
         lock (_queue)
         {
-            _queue.Enqueue(WrapFunc(newTask, func));
+            _queue.Add((WrapFunc(newTask, func), null));
         }
         _numberOfTasks.Release();
         return newTask;
     }
 
-    private void Submit(Action action)
+    private void Submit<TResult>(Action action, IMyTask<TResult> mainTask)
     {
         if (IsTerminated)
         {
@@ -181,11 +167,13 @@ public class MyThreadPool
         }
         lock (_queue)
         {
-            _queue.Enqueue(action);
+            _queue.Add((action, MakeIsCompletedFunc(mainTask)));
         }
 
         _numberOfTasks.Release();
     }
+
+    private static Func<bool> MakeIsCompletedFunc<TResult>(IMyTask<TResult> task) => () => task.IsCompleted;
 
     private Action WrapFunc<TResult>(IMyTask<TResult> task, Func<TResult> func) => () =>
     {
