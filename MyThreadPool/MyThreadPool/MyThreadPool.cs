@@ -62,11 +62,14 @@ public class MyThreadPool
                 Action? action = null;
                 lock (_actionsList)
                 {
+                    var counter = -1;
                     foreach (var tuple in _actionsList)
                     {
+                        counter++;
                         if (tuple.Item2 == null || tuple.Item2())
                         {
                             action = tuple.Item1;
+                            _actionsList.RemoveAt(counter);
                             break;
                         }
                     }
