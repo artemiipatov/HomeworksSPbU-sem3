@@ -14,7 +14,7 @@ public class Tests
     public void Test1()
     {
         var threadPool = new MyThreadPool(4);
-        int numberOfTasks = 100000;
+        int numberOfTasks = 1000;
         var resultArray = new IMyTask<long>[numberOfTasks];
         long number = 200000;
         for (var i = 0; i < numberOfTasks; i++)
