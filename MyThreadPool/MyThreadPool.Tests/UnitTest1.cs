@@ -1,8 +1,7 @@
-using System;
-using System.Threading;
-using NUnit.Framework;
-
 namespace MyThreadPool.Tests;
+
+using System;
+using NUnit.Framework;
 
 public class Tests
 {
@@ -15,15 +14,16 @@ public class Tests
     public void Test1()
     {
         var threadPool = new MyThreadPool(4);
-        var resultArray = new IMyTask<long>[10000];
-        
-        for (var i = 0; i < 10000; i++)
+        int numberOfTasks = 100000;
+        var resultArray = new IMyTask<long>[numberOfTasks];
+        long number = 200000;
+        for (var i = 0; i < numberOfTasks; i++)
         {
             var j = i;
             resultArray[i] = threadPool.Submit(() =>
             {
                 long counter = 0;
-                for (long k = 0; k < 100000 + j; k++)
+                for (long k = 0; k < number + j; k++)
                 {
                     counter += k;
                 }
@@ -32,14 +32,14 @@ public class Tests
             });
         }
 
-        // threadPool.Shutdown();
         Func<long, string> func = l => l.ToString();
-        
-        var result = resultArray[9999].ContinueWith<string>(func).Result;
-        
-        for (long i = 0; i < 10000; i++)
+
+        var result = resultArray[numberOfTasks - 1].ContinueWith<string>(func).Result;
+        threadPool.Shutdown();
+
+        for (long i = 0; i < numberOfTasks; i++)
         {
-            Assert.AreEqual(4999950000 + (100000 + i - 1 + 100000)*i/2, resultArray[i].Result);
+            Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2), resultArray[i].Result);
         }
     }
 }

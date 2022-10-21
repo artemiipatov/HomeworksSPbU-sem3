@@ -75,8 +75,18 @@ public class MyThreadPool
                     }
                 }
 
-                action?.Invoke();
-                _numberOfTasks.WaitOne();
+                try
+                {
+                    action?.Invoke();
+                    if (action != null)
+                    {
+                        _numberOfTasks.WaitOne();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new AggregateException(ex);
+                }
             }
         }
         catch (ThreadInterruptedException)
@@ -100,11 +110,20 @@ public class MyThreadPool
                 {
                     break;
                 }
+
+                try
+                {
+                    action.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    throw new AggregateException(ex);
+                }
             }
         }
     }
 
-    private void Submit<TResult>(Action action, IMyTask<TResult> mainTask)
+    private void SubmitContinuationWithoutTasking<TResult>(Action action, IMyTask<TResult> mainTask)
     {
         if (IsTerminated)
         {
@@ -115,8 +134,6 @@ public class MyThreadPool
         {
             _actionsList.Add((action, MakeIsCompletedFunc(mainTask)));
         }
-
-        _numberOfTasks.Release();
     }
 
     private Action WrapFunc<TResult>(IMyTask<TResult> task, Func<TResult> func) => () =>
@@ -136,6 +153,8 @@ public class MyThreadPool
         private bool _isCompleted;
 
         private TResult _result;
+
+        private int _numberOfContinuations;
 
         public MyTask(MyThreadPool threadPool)
         {
@@ -187,6 +206,12 @@ public class MyThreadPool
                         Monitor.Pulse(_resultLocker);
                     }
                 }
+
+                if (_numberOfContinuations > 0)
+                {
+                    _threadPool._numberOfTasks.Release(_numberOfContinuations);
+                    _numberOfContinuations = 0;
+                }
             }
         }
 
@@ -199,7 +224,17 @@ public class MyThreadPool
                 task.Result = continuationFunc(Result);
             };
 
-            _threadPool.Submit(action, this);
+            _threadPool.SubmitContinuationWithoutTasking(action, this);
+
+            if (IsCompleted)
+            {
+                _threadPool._numberOfTasks.Release();
+            }
+            else
+            {
+                ++_numberOfContinuations;
+            }
+
             return newTask;
         }
     }
