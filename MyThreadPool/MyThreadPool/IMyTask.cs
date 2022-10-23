@@ -4,7 +4,7 @@ public interface IMyTask<TResult>
 {
     bool IsCompleted { get; }
 
-    TResult Result { get; set; }
+    TResult Result { get; }
 
     IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc);
 }

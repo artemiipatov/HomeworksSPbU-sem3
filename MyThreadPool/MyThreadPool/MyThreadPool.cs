@@ -1,12 +1,15 @@
 ﻿namespace MyThreadPool;
 
+using System.Collections.Concurrent;
+using Optional;
+
 public class MyThreadPool
 {
-    private readonly Semaphore _numberOfTasks = new(0, 100000); // Либо чем-то заменить, либо подумать над лимитом.
-
     private readonly Thread[] _threads;
 
-    private readonly List<(Action, Func<bool>?)> _actionsList = new();
+    private readonly BlockingCollection<Action> _actionsQueue = new();
+
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
 
     public MyThreadPool(int numberOfThreads)
     {
@@ -23,219 +26,158 @@ public class MyThreadPool
             throw new Exception(); // сделать другое исключение
         }
 
-        IMyTask<TResult> newTask = new MyTask<TResult>(this);
-        lock (_actionsList)
-        {
-            _actionsList.Add((WrapFunc(newTask, func), null));
-        }
+        IMyTask<TResult> newTask = new MyTask<TResult>(this, func);
 
-        _numberOfTasks.Release();
+        _actionsQueue.Add((newTask as MyTask<TResult>).MakeExecutableAction());
+
         return newTask;
     }
 
     public void Shutdown()
     {
         IsTerminated = true;
-        foreach (var thread in _threads)
-        {
-            thread.Interrupt();
-        }
+        _actionsQueue.CompleteAdding();
+        _cancellationTokenSource.Cancel();
     }
 
-    private static Func<bool> MakeIsCompletedFunc<TResult>(IMyTask<TResult> task) => () => task.IsCompleted;
+    private static Func<TResult> MakeResultFunction<TResult>(TResult result) =>
+        () => result;
+
+    private static Func<TResult> MakeAggregateExceptionFunction<TResult>(Exception innerException) =>
+        () => throw new AggregateException(innerException);
 
     private void StartThreads()
     {
         for (var i = 0; i < _threads.Length; i++)
         {
-            _threads[i] = new Thread(ThreadActions);
+            _threads[i] = new Thread(() => ThreadActions(_cancellationTokenSource.Token));
             _threads[i].Start();
         }
     }
 
-    private void ThreadActions()
+    private void ThreadActions(CancellationToken cancellationToken)
     {
-        try
+        foreach (var action in _actionsQueue.GetConsumingEnumerable(cancellationToken))
         {
-            while (true)
-            {
-                Action? action = null;
-                lock (_actionsList)
-                {
-                    var counter = -1;
-                    foreach (var tuple in _actionsList)
-                    {
-                        counter++;
-                        if (tuple.Item2 == null || tuple.Item2())
-                        {
-                            action = tuple.Item1;
-                            _actionsList.RemoveAt(counter);
-                            break;
-                        }
-                    }
-                }
-
-                try
-                {
-                    action?.Invoke();
-                    if (action != null)
-                    {
-                        _numberOfTasks.WaitOne();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw new AggregateException(ex);
-                }
-            }
-        }
-        catch (ThreadInterruptedException)
-        {
-            while (true)
-            {
-                Action? action = null;
-                lock (_actionsList)
-                {
-                    foreach (var tuple in _actionsList)
-                    {
-                        if (tuple.Item2 == null || tuple.Item2())
-                        {
-                            action = tuple.Item1;
-                            break;
-                        }
-                    }
-                }
-
-                if (action == null)
-                {
-                    break;
-                }
-
-                try
-                {
-                    action.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    throw new AggregateException(ex);
-                }
-            }
+            action.Invoke();
         }
     }
 
-    private void SubmitContinuationWithoutTasking<TResult>(Action action, IMyTask<TResult> mainTask)
+    private void SubmitContinuationWithoutTasking(Action continuationAction)
     {
         if (IsTerminated)
         {
             throw new Exception(); // сделать другое исключение
         }
 
-        lock (_actionsList)
-        {
-            _actionsList.Add((action, MakeIsCompletedFunc(mainTask)));
-        }
+        _actionsQueue.Add(continuationAction);
     }
-
-    private Action WrapFunc<TResult>(IMyTask<TResult> task, Func<TResult> func) => () =>
-    {
-        var result = func();
-        task.Result = result;
-    };
 
     private class MyTask<TResult> : IMyTask<TResult>
     {
-        private readonly MyThreadPool _threadPool; // Подумать над другим способом
+        private readonly MyThreadPool _threadPool;
 
-        private readonly object _locker = new();
+        private readonly List<Action> _continuationsList = new();
 
-        private readonly object _resultLocker = new();
+        private readonly Func<TResult> _mainFunction;
 
-        private bool _isCompleted;
+        private readonly object _executionLocker = new();
 
-        private TResult _result;
+        private Option<Func<TResult>> _resultOption = Option.None<Func<TResult>>();
 
-        private int _numberOfContinuations;
-
-        public MyTask(MyThreadPool threadPool)
+        public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction)
         {
             _threadPool = threadPool;
+            _mainFunction = mainFunction;
         }
 
-        public bool IsCompleted
-        {
-            get
-            {
-                lock (_locker)
-                {
-                    return _isCompleted;
-                }
-            }
+        public bool IsCompleted { get; private set; }
 
-            private set
-            {
-                lock (_locker)
-                {
-                    _isCompleted = value;
-                }
-            }
-        }
+        public TResult Result =>
+            _resultOption.Match(
+                some: resultFunc => resultFunc.Invoke(),
+                none: ExecuteRightNow());
 
-        public TResult Result
+        public TResult Execute()
         {
-            get
+            lock (_executionLocker)
             {
                 if (!IsCompleted)
                 {
-                    lock (_resultLocker)
-                    {
-                        Monitor.Wait(_resultLocker);
-                    }
-                }
-
-                return _result;
-            }
-
-            set
-            {
-                lock (_resultLocker)
-                {
-                    if (!IsCompleted)
-                    {
-                        _result = value;
-                        IsCompleted = true;
-                        Monitor.Pulse(_resultLocker);
-                    }
-                }
-
-                if (_numberOfContinuations > 0)
-                {
-                    _threadPool._numberOfTasks.Release(_numberOfContinuations);
-                    _numberOfContinuations = 0;
+                    var result = _mainFunction.Invoke();
+                    return result;
                 }
             }
+
+            return Result;
         }
 
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
         {
-            IMyTask<TNewResult> newTask = new MyTask<TNewResult>(_threadPool);
-            var action = () =>
-            {
-                var task = newTask;
-                task.Result = continuationFunc(Result);
-            };
+            var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
 
-            _threadPool.SubmitContinuationWithoutTasking(action, this);
+            var continuationAction = newTask.MakeExecutableAction();
 
-            if (IsCompleted)
+            lock (_continuationsList)
             {
-                _threadPool._numberOfTasks.Release();
-            }
-            else
-            {
-                ++_numberOfContinuations;
+                if (IsCompleted)
+                {
+                    _threadPool.SubmitContinuationWithoutTasking(continuationAction);
+                }
+                else
+                {
+                    _continuationsList.Add(continuationAction);
+                }
             }
 
             return newTask;
+        }
+
+        public Action MakeExecutableAction() => () =>
+        {
+            try
+            {
+                var result = Execute();
+                _resultOption = MakeResultFunction(result).Some();
+            }
+            catch (Exception ex)
+            {
+                _resultOption = MakeAggregateExceptionFunction<TResult>(ex).Some();
+            }
+            finally
+            {
+                IsCompleted = true;
+                MoveContinuationsToMainQueue();
+            }
+        };
+
+        private Func<TNewResult> MakeFunctionWithoutArguments<TNewResult>(Func<TResult, TNewResult> oneArgumentFunction) =>
+            () => oneArgumentFunction(Result);
+
+        private void MoveContinuationsToMainQueue()
+        {
+            lock (_continuationsList)
+            {
+                foreach (var continuation in _continuationsList)
+                {
+                    _threadPool._actionsQueue.Add(continuation);
+                }
+            }
+        }
+
+        private Func<TResult> ExecuteRightNow()
+        {
+            lock (_executionLocker)
+            {
+                if (!IsCompleted)
+                {
+                    var result = _mainFunction.Invoke();
+                    _resultOption = MakeResultFunction(result).Some();
+                    IsCompleted = true;
+                }
+            }
+
+            return _resultOption.ValueOr(() => () => throw new Exception()); // сделать другое исключение
         }
     }
 }

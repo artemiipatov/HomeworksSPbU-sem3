@@ -1,3 +1,5 @@
+using System.Threading;
+
 namespace MyThreadPool.Tests;
 
 using System;
@@ -34,7 +36,13 @@ public class Tests
 
         Func<long, string> func = l => l.ToString();
 
-        var result = resultArray[numberOfTasks - 1].ContinueWith<string>(func).Result;
+        for (var i = 100; i < numberOfTasks; i++)
+        {
+            var result = resultArray[numberOfTasks - 1].ContinueWith<string>(func).Result;
+            Assert.AreEqual(resultArray[numberOfTasks - 1].Result.ToString(), result);
+        }
+
+        Thread.Sleep(1000);
         threadPool.Shutdown();
 
         for (long i = 0; i < numberOfTasks; i++)
