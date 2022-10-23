@@ -16,7 +16,7 @@ public class Tests
     public void Test1()
     {
         var threadPool = new MyThreadPool(4);
-        int numberOfTasks = 10;
+        int numberOfTasks = 100;
         var resultArray = new IMyTask<long>[numberOfTasks];
         long number = 200000;
         for (var i = 0; i < numberOfTasks; i++)
@@ -36,18 +36,17 @@ public class Tests
 
         Func<long, string> func = l => l.ToString();
 
-        for (var i = 100; i < numberOfTasks; i++)
+        for (var i = 10; i < numberOfTasks; i++)
         {
             var result = resultArray[numberOfTasks - 1].ContinueWith<string>(func).Result;
             Assert.AreEqual(resultArray[numberOfTasks - 1].Result.ToString(), result);
         }
 
-        Thread.Sleep(1000);
-        threadPool.Shutdown();
-
         for (long i = 0; i < numberOfTasks; i++)
         {
             Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2), resultArray[i].Result);
         }
+
+        threadPool.Shutdown();
     }
 }
