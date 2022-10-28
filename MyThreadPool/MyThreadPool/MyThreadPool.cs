@@ -3,13 +3,15 @@
 using System.Collections.Concurrent;
 using Optional;
 
-public class MyThreadPool
+public class MyThreadPool : IDisposable
 {
     private readonly Thread[] _threads;
 
     private readonly BlockingCollection<Action> _actionsQueue = new();
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+    private bool _isDisposed = false;
 
     public MyThreadPool(int numberOfThreads)
     {
@@ -38,6 +40,20 @@ public class MyThreadPool
         IsTerminated = true;
         _actionsQueue.CompleteAdding();
         _cancellationTokenSource.Cancel();
+    }
+
+    public void Dispose()
+    {
+        if (!IsTerminated)
+        {
+            Shutdown();
+        }
+
+        if (!_isDisposed)
+        {
+            _actionsQueue.Dispose();
+            _isDisposed = true;
+        }
     }
 
     private static Func<TResult> MakeResultFunction<TResult>(TResult result) =>
@@ -87,8 +103,8 @@ public class MyThreadPool
 
         public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction)
         {
-            _threadPool = threadPool;
-            _mainFunction = mainFunction;
+            _threadPool = threadPool ?? throw new ArgumentException("Thread pool is null.");
+            _mainFunction = mainFunction ?? throw new ArgumentException("Function is null.");
         }
 
         public bool IsCompleted { get; private set; }
@@ -114,6 +130,11 @@ public class MyThreadPool
 
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
         {
+            if (_threadPool.IsTerminated)
+            {
+                throw new Exception(); // заменить исключение
+            }
+
             var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
 
             var continuationAction = newTask.MakeExecutableAction();
