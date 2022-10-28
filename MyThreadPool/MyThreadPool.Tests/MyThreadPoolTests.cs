@@ -4,46 +4,50 @@ using System;
 using System.Threading;
 using NUnit.Framework;
 
-public class Tests
+public class MyThreadPoolTests
 {
     [Test]
     public void ThereAreNoDeadLocksOnLargeAmountOfTasks()
     {
-        const int numberOfTasks = 10000;
-        const long number = 200000;
-
-        using var threadPool = new MyThreadPool(6);
-        var resultArray = new IMyTask<long>[numberOfTasks];
-
-        for (var i = 0; i < numberOfTasks; i++)
+        for (var _ = 0; _ < 10; _++)
         {
-            var j = i;
-            resultArray[i] = threadPool.Submit(() =>
+            const int numberOfTasks = 100;
+            const long number = 200000;
+
+            using var threadPool = new MyThreadPool(6);
+            var resultArray = new IMyTask<long>[numberOfTasks];
+
+            for (var i = 0; i < numberOfTasks; i++)
             {
-                long counter = 0;
-                for (long k = 0; k < number + j; k++)
+                var j = i;
+                resultArray[i] = threadPool.Submit(() =>
                 {
-                    counter += k;
-                }
+                    long counter = 0;
+                    for (long k = 0; k < number + j; k++)
+                    {
+                        counter += k;
+                    }
 
-                return counter;
-            });
+                    return counter;
+                });
+            }
+
+            Func<long, string> func = l => l.ToString();
+
+            for (var i = 10; i < numberOfTasks; i++)
+            {
+                var result = resultArray[numberOfTasks - 1].ContinueWith(func).Result;
+                Assert.AreEqual(resultArray[numberOfTasks - 1].Result.ToString(), result);
+            }
+
+            for (long i = 0; i < numberOfTasks; i++)
+            {
+                Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2),
+                    resultArray[i].Result);
+            }
+
+            threadPool.Shutdown();
         }
-
-        Func<long, string> func = l => l.ToString();
-
-        for (var i = 10; i < numberOfTasks; i++)
-        {
-            var result = resultArray[numberOfTasks - 1].ContinueWith<string>(func).Result;
-            Assert.AreEqual(resultArray[numberOfTasks - 1].Result.ToString(), result);
-        }
-
-        for (long i = 0; i < numberOfTasks; i++)
-        {
-            Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2), resultArray[i].Result);
-        }
-
-        threadPool.Shutdown();
     }
 
     [Test]
