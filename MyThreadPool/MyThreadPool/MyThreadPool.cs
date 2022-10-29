@@ -3,6 +3,9 @@
 using System.Collections.Concurrent;
 using Optional;
 
+/// <summary>
+/// Provides a pool of threads that can be used to execute tasks, continuation tasks. Implements IDisposable.
+/// </summary>
 public class MyThreadPool : IDisposable
 {
     private readonly Thread[] _threads;
@@ -13,19 +16,34 @@ public class MyThreadPool : IDisposable
 
     private bool _isDisposed;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MyThreadPool"/> class.
+    /// </summary>
+    /// <param name="numberOfThreads">Amount of threads on thread pool.</param>
     public MyThreadPool(int numberOfThreads)
     {
         _threads = new Thread[numberOfThreads];
         StartThreads();
     }
 
+    /// <summary>
+    /// Gets a value indicating whether <see cref="MyThreadPool"/> is shutdown.
+    /// </summary>
+    /// <returns>True if <see cref="MyThreadPool"/> is shutdown; otherwise, false.</returns>
     public bool IsTerminated { get; private set; }
 
+    /// <summary>
+    /// Adds new task to this <see cref="MyThreadPool"/>.
+    /// </summary>
+    /// <param name="func">Function that should be calculated.</param>
+    /// <typeparam name="TResult">Result type of the <paramref name="func"/>.</typeparam>
+    /// <returns>A new task <see cref="IMyTask{TResult}"/>.</returns>
+    /// <exception cref="MyThreadPoolTerminatedException">Throws if <see cref="MyThreadPool"/> is shut down.</exception>
     public IMyTask<TResult> Submit<TResult>(Func<TResult> func)
     {
         if (IsTerminated)
         {
-            throw new Exception(); // сделать другое исключение
+            throw new MyThreadPoolTerminatedException();
         }
 
         IMyTask<TResult> newTask = new MyTask<TResult>(this, func);
@@ -35,11 +53,15 @@ public class MyThreadPool : IDisposable
         return newTask;
     }
 
+    /// <summary>
+    /// Terminates this <see cref="MyThreadPool"/>.
+    /// </summary>
+    /// <exception cref="MyThreadPoolTerminatedException">Throws if this <see cref="MyThreadPool"/> is already shut down.</exception>
     public void Shutdown()
     {
         if (IsTerminated)
         {
-            throw new Exception("Thread pool is already shut down.");
+            throw new MyThreadPoolTerminatedException("Thread pool is already shut down.");
         }
 
         IsTerminated = true;
@@ -50,6 +72,9 @@ public class MyThreadPool : IDisposable
         }
     }
 
+    /// <summary>
+    /// Releases all resources used by the current instance of the <see cref="MyThreadPool"/>> class.
+    /// </summary>
     public void Dispose()
     {
         if (!IsTerminated)
@@ -83,10 +108,6 @@ public class MyThreadPool : IDisposable
     {
         try
         {
-            // foreach (var action in _actionsQueue.GetConsumingEnumerable(cancellationToken))
-            // {
-            //     action.Invoke();
-            // }
             while (!cancellationToken.IsCancellationRequested)
             {
                 var action = _actionsQueue.Take(cancellationToken);
@@ -103,7 +124,7 @@ public class MyThreadPool : IDisposable
     {
         if (IsTerminated)
         {
-            throw new Exception(); // сделать другое исключение
+            throw new MyThreadPoolTerminatedException("Thread pool was shut down.");
         }
 
         _actionsQueue.Add(continuationAction);
@@ -121,38 +142,33 @@ public class MyThreadPool : IDisposable
 
         private Option<Func<TResult>> _resultOption = Option.None<Func<TResult>>();
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MyTask{TResult}"/> class.
+        /// </summary>
+        /// <param name="threadPool"><see cref="MyThreadPool"/> which will compute the task.</param>
+        /// <param name="mainFunction">Function that should be computed.</param>
+        /// <exception cref="ArgumentException">Throws if <paramref name="threadPool"/> or <paramref name="mainFunction"/> is null.</exception>
         public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction)
         {
             _threadPool = threadPool ?? throw new ArgumentException("Thread pool is null.");
             _mainFunction = mainFunction ?? throw new ArgumentException("Function is null.");
         }
 
+        /// <inheritdoc />
         public bool IsCompleted { get; private set; }
 
+        /// <inheritdoc />
         public TResult Result =>
             _resultOption.Match(
                 some: resultFunc => resultFunc.Invoke(),
                 none: ExecuteRightNow());
 
-        public TResult Execute()
-        {
-            lock (_executionLocker)
-            {
-                if (!IsCompleted)
-                {
-                    var result = _mainFunction.Invoke();
-                    return result;
-                }
-            }
-
-            return Result;
-        }
-
+        /// <inheritdoc />
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
         {
             if (_threadPool.IsTerminated)
             {
-                throw new Exception(); // заменить исключение
+                throw new MyThreadPoolTerminatedException(); // заменить исключение
             }
 
             var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
@@ -174,6 +190,10 @@ public class MyThreadPool : IDisposable
             return newTask;
         }
 
+        /// <summary>
+        /// Makes action that can be passed to <see cref="MyThreadPool"/>
+        /// </summary>
+        /// <returns>Action that wraps main function of the task. This action computes main function and writes the result of it to the <see cref="Result"/> of the <see cref="MyTask{TResult}"/>.</returns>
         public Action MakeExecutableAction() => () =>
         {
             try
@@ -191,6 +211,20 @@ public class MyThreadPool : IDisposable
                 MoveContinuationsToMainQueue();
             }
         };
+
+        private TResult Execute()
+        {
+            lock (_executionLocker)
+            {
+                if (!IsCompleted)
+                {
+                    var result = _mainFunction.Invoke();
+                    return result;
+                }
+            }
+
+            return Result;
+        }
 
         private Func<TNewResult> MakeFunctionWithoutArguments<TNewResult>(Func<TResult, TNewResult> oneArgumentFunction) =>
             () => oneArgumentFunction(Result);
