@@ -11,7 +11,7 @@ public class MyThreadPool : IDisposable
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
 
-    private bool _isDisposed = false;
+    private bool _isDisposed;
 
     public MyThreadPool(int numberOfThreads)
     {
@@ -37,9 +37,17 @@ public class MyThreadPool : IDisposable
 
     public void Shutdown()
     {
+        if (IsTerminated)
+        {
+            throw new Exception("Thread pool is already shut down.");
+        }
+
         IsTerminated = true;
-        _actionsQueue.CompleteAdding();
         _cancellationTokenSource.Cancel();
+        foreach (var thread in _threads)
+        {
+            thread.Join();
+        }
     }
 
     public void Dispose()
@@ -73,9 +81,21 @@ public class MyThreadPool : IDisposable
 
     private void ThreadActions(CancellationToken cancellationToken)
     {
-        foreach (var action in _actionsQueue.GetConsumingEnumerable(cancellationToken))
+        try
         {
-            action.Invoke();
+            // foreach (var action in _actionsQueue.GetConsumingEnumerable(cancellationToken))
+            // {
+            //     action.Invoke();
+            // }
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var action = _actionsQueue.Take(cancellationToken);
+
+                action.Invoke();
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 

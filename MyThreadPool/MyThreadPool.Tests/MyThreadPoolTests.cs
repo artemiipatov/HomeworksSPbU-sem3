@@ -11,7 +11,7 @@ public class MyThreadPoolTests
     {
         for (var _ = 0; _ < 10; _++)
         {
-            const int numberOfTasks = 100;
+            const int numberOfTasks = 10000;
             const long number = 200000;
 
             using var threadPool = new MyThreadPool(6);
@@ -45,8 +45,6 @@ public class MyThreadPoolTests
                 Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2),
                     resultArray[i].Result);
             }
-
-            threadPool.Shutdown();
         }
     }
 
@@ -108,7 +106,7 @@ public class MyThreadPoolTests
     {
         using var threadPool = new MyThreadPool(4);
         var threads = new Thread[4];
-        var tasksArrays = new IMyTask<int>[4, 1000];
+        var continuationsArrays = new IMyTask<string>[4, 1000];
 
         Func<int> MultiplyBy10(int number) => () => number * 10;
 
@@ -120,7 +118,7 @@ public class MyThreadPoolTests
             {
                 for (var i = 0; i < 1000; i++)
                 {
-                    tasksArrays[numberOfArray, i] = threadPool.Submit(MultiplyBy10(i));
+                    continuationsArrays[numberOfArray, i] = threadPool.Submit(MultiplyBy10(i)).ContinueWith(value => value.ToString());
                 }
             });
             threads[j].Start();
@@ -135,7 +133,7 @@ public class MyThreadPoolTests
         {
             for (var i = 0; i < 1000; i++)
             {
-                Assert.AreEqual(i * 10, tasksArrays[j, i].Result);
+                Assert.AreEqual((i * 10).ToString(), continuationsArrays[j, i].Result);
             }
         }
     }
