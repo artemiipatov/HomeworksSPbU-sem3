@@ -57,7 +57,7 @@ public class MyThreadPoolTests
 
         threadPool.Submit(function);
         threadPool.Shutdown();
-        Assert.Throws<Exception>(() => threadPool.Submit(function));
+        Assert.Throws<MyThreadPoolTerminatedException>(() => threadPool.Submit(function));
     }
 
     [Test]
@@ -83,7 +83,7 @@ public class MyThreadPoolTests
 
         Assert.AreEqual(49995000, task.Result);
         Assert.AreEqual("49995000", firstContinuation.Result);
-        Assert.Throws<Exception>(() => task.ContinueWith(value => value * 100));
+        Assert.Throws<MyThreadPoolTerminatedException>(() => task.ContinueWith(value => value * 100));
     }
 
     [Test]
