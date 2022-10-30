@@ -1,11 +1,14 @@
 namespace MyThreadPool.Tests;
 
 using System;
+using System.Linq;
 using System.Threading;
 using NUnit.Framework;
 
 public class MyThreadPoolTests
 {
+    private static readonly int ThreadsCount = Environment.ProcessorCount;
+
     [Test]
     public void ThereAreNoDeadLocksOnLargeAmountOfTasks()
     {
@@ -14,7 +17,7 @@ public class MyThreadPoolTests
             const int numberOfTasks = 10000;
             const long number = 200000;
 
-            using var threadPool = new MyThreadPool(6);
+            using var threadPool = new MyThreadPool(ThreadsCount);
             var resultArray = new IMyTask<long>[numberOfTasks];
 
             for (var i = 0; i < numberOfTasks; i++)
@@ -51,7 +54,7 @@ public class MyThreadPoolTests
     [Test]
     public void SubmitThrowsExceptionAfterShutdown()
     {
-        using var threadPool = new MyThreadPool(2);
+        using var threadPool = new MyThreadPool(ThreadsCount);
 
         var function = () => 1000;
 
@@ -63,7 +66,7 @@ public class MyThreadPoolTests
     [Test]
     public void ContinueWithThrowsExceptionAfterShutdown()
     {
-        using var threadPool = new MyThreadPool(2);
+        using var threadPool = new MyThreadPool(ThreadsCount);
 
         var function = () =>
         {
@@ -77,19 +80,17 @@ public class MyThreadPoolTests
         };
 
         var task = threadPool.Submit(function);
-        var firstContinuation = task.ContinueWith(value => value.ToString());
 
         threadPool.Shutdown();
 
         Assert.AreEqual(49995000, task.Result);
-        Assert.AreEqual("49995000", firstContinuation.Result);
         Assert.Throws<MyThreadPoolTerminatedException>(() => task.ContinueWith(value => value * 100));
     }
 
     [Test]
     public void ThreadsWaitsUntilResultComputesIfItIsNotComputedYet()
     {
-        using var threadPool = new MyThreadPool(2);
+        using var threadPool = new MyThreadPool(ThreadsCount);
 
         var function = () =>
         {
@@ -104,7 +105,7 @@ public class MyThreadPoolTests
     [Test]
     public void SubmitAndContinueWithAreThreadSafe()
     {
-        using var threadPool = new MyThreadPool(4);
+        using var threadPool = new MyThreadPool(ThreadsCount);
         var threads = new Thread[4];
         var continuationsArrays = new IMyTask<string>[4, 1000];
 
@@ -136,5 +137,54 @@ public class MyThreadPoolTests
                 Assert.AreEqual((i * 10).ToString(), continuationsArrays[j, i].Result);
             }
         }
+    }
+
+    [Test]
+    public void ExceptionShouldBeThrownOnResultIfThreadPoolIsShutDownBeforeTaskIsCompleted()
+    {
+        using var threadPool = new MyThreadPool(ThreadsCount);
+
+        var function = () =>
+        {
+            Thread.Sleep(1000);
+            return 10;
+        };
+
+        var continuation = threadPool.Submit(function).ContinueWith(value => value.ToString());
+        threadPool.Shutdown();
+        Assert.Throws<AggregateException>(() =>
+        {
+            var result = continuation.Result;
+        });
+    }
+
+    [TestCase(2)]
+    [TestCase(4)]
+    [TestCase(6)]
+    public void MyThreadPoolSuccessfullyCreatesSpecifiedNumberOfThreads(int numberOfThreads)
+    {
+        var function = () =>
+        {
+            Thread.Sleep(300);
+            return Thread.CurrentThread.ManagedThreadId;
+        };
+
+        using var myThreadPool = new MyThreadPool(numberOfThreads);
+        var tasks = new IMyTask<int>[numberOfThreads];
+        var tasksResults = new int[numberOfThreads];
+
+        for (int i = 0; i < numberOfThreads; i++)
+        {
+            tasks[i] = myThreadPool.Submit(function);
+        }
+
+        Thread.Sleep(2000);
+
+        for (var i = 0; i < numberOfThreads; i++)
+        {
+            tasksResults[i] = tasks[i].Result;
+        }
+
+        Assert.IsTrue(tasksResults.Distinct().Count() == tasksResults.Length);
     }
 }

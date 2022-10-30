@@ -22,6 +22,11 @@ public class MyThreadPool : IDisposable
     /// <param name="numberOfThreads">Amount of threads on thread pool.</param>
     public MyThreadPool(int numberOfThreads)
     {
+        if (numberOfThreads <= 0)
+        {
+            throw new ArgumentException("Number of threads should be greater than zero.");
+        }
+
         _threads = new Thread[numberOfThreads];
         StartThreads();
     }
@@ -54,9 +59,9 @@ public class MyThreadPool : IDisposable
     }
 
     /// <summary>
-    /// Terminates this <see cref="MyThreadPool"/>.
+    /// Terminates <see cref="MyThreadPool"/>.
     /// </summary>
-    /// <exception cref="MyThreadPoolTerminatedException">Throws if this <see cref="MyThreadPool"/> is already shut down.</exception>
+    /// <exception cref="MyThreadPoolTerminatedException">Throws if <see cref="MyThreadPool"/> is already shut down.</exception>
     public void Shutdown()
     {
         if (IsTerminated)
@@ -73,7 +78,7 @@ public class MyThreadPool : IDisposable
     }
 
     /// <summary>
-    /// Releases all resources used by the current instance of the <see cref="MyThreadPool"/>> class.
+    /// Releases all resources used by the current instance of the <see cref="MyThreadPool"/> class.
     /// </summary>
     public void Dispose()
     {
@@ -168,7 +173,7 @@ public class MyThreadPool : IDisposable
         {
             if (_threadPool.IsTerminated)
             {
-                throw new MyThreadPoolTerminatedException(); // заменить исключение
+                throw new MyThreadPoolTerminatedException();
             }
 
             var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
@@ -246,6 +251,13 @@ public class MyThreadPool : IDisposable
             {
                 if (!IsCompleted)
                 {
+                    if (_threadPool.IsTerminated)
+                    {
+                        var ex = MakeAggregateExceptionFunction<TResult>(new MyThreadPoolTerminatedException("Thread pool had been terminated before task was computed."));
+                        _resultOption = ex.Some();
+                        ex.Invoke();
+                    }
+
                     var result = _mainFunction.Invoke();
                     _resultOption = MakeResultFunction(result).Some();
                     IsCompleted = true;
