@@ -81,6 +81,8 @@ public class MyThreadPoolTests
 
         var task = threadPool.Submit(function);
 
+        Thread.Sleep(100);
+
         threadPool.Shutdown();
 
         Assert.AreEqual(49995000, task.Result);
