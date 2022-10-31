@@ -6,9 +6,9 @@
 /// <typeparam name="T">Return type of a function.</typeparam>
 public class LazyConcurrent<T> : ILazy<T>
 {
-    private bool _isCalculated;
+    private readonly object _locker = new();
 
-    private object _locker = new();
+    private bool _isCalculated;
 
     private Func<T?> _func;
 

@@ -6,9 +6,9 @@
 /// <typeparam name="T">Return type of a function.</typeparam>
 public class LazySerial<T> : ILazy<T>
 {
-    private bool _isCalculated = false;
-
     private readonly Func<T?> _func;
+
+    private bool _isCalculated = false;
 
     private T? _result;
 
