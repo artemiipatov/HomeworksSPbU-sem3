@@ -4,7 +4,7 @@ using System.Threading;
 using Lazy;
 using NUnit.Framework;
 
-public class Tests
+public class LazyTests
 {
     [Test]
     public void SerialLazyExecutesFunctionOnlyOnce()
