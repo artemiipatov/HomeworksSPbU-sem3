@@ -6,14 +6,15 @@ const int n = 10;
 
 TableBuilder.CreateTable("table.txt");
 
-for (var j = 1; j < 4; j++)
+for (var j = 1; j < 9; j++)
 {
     var size = j * 100;
+    var calculationTime = new long[n];
+
     Matrix.MatrixGenerator("matrix1.txt", (size, size));
     Matrix.MatrixGenerator("matrix2.txt", (size, size));
     var matrix1 = new Matrix("matrix1.txt");
     var matrix2 = new Matrix("matrix2.txt");
-    var calculationTime = new long[n];
 
     for (var i = 0; i < n; i++)
     {
