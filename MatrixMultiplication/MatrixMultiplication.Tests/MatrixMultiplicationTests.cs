@@ -30,7 +30,7 @@ public class Tests
     {
         var correctResult = new[,] { { 44, 213 }, { 29, 154 } };
         var matrix1 = new DenseMatrix(new[,] { { 10, 4, 5 }, { 8, 9, 1 } });
-        var matrix2 = new DenseMatrix(new[,] { { 2, 9 }, { 1, 7 }, {4, 19} });
+        var matrix2 = new DenseMatrix(new[,] { { 2, 9 }, { 1, 7 }, { 4, 19 } });
         var result = DenseMatrix.MultiplySerially(matrix1, matrix2);
         Assert.AreEqual(correctResult, result.Matrix);
     }

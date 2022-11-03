@@ -4,9 +4,9 @@ using Matrix = MatrixMultiplication.DenseMatrix;
 
 const int n = 10;
 
-Table.CreateTable("table.txt");
+TableBuilder.CreateTable("table.txt");
 
-for (var j = 1; j < 9; j++)
+for (var j = 1; j < 4; j++)
 {
     var size = j * 100;
     Matrix.MatrixGenerator("matrix1.txt", (size, size));
@@ -14,7 +14,7 @@ for (var j = 1; j < 9; j++)
     var matrix1 = new Matrix("matrix1.txt");
     var matrix2 = new Matrix("matrix2.txt");
     var calculationTime = new long[n];
-    
+
     for (var i = 0; i < n; i++)
     {
         var stopwatch = new Stopwatch();
@@ -24,7 +24,8 @@ for (var j = 1; j < 9; j++)
         calculationTime[i] = stopwatch.ElapsedMilliseconds;
     }
 
-    var expectedValue1 = Comparison.CalculateExpectedValue(calculationTime);
+    // var expectedValue1 = Comparison.CalculateExpectedValue(calculationTime);
+    var expectedValue1 = calculationTime.Average();
     var deviation1 = Comparison.CalculateDeviation(calculationTime);
 
     for (var i = 0; i < n; i++)
@@ -35,9 +36,9 @@ for (var j = 1; j < 9; j++)
         stopwatch.Stop();
         calculationTime[i] = stopwatch.ElapsedMilliseconds;
     }
-    
-    var expectedValue2 = Comparison.CalculateExpectedValue(calculationTime);
+
+    var expectedValue2 = calculationTime.Average();
     var deviation2 = Comparison.CalculateDeviation(calculationTime);
 
-    Table.WriteDataToTable("table.txt", (size, size), expectedValue1, deviation1, expectedValue2, deviation2);
+    TableBuilder.WriteDataToTable("table.txt", (size, size), expectedValue1, deviation1, expectedValue2, deviation2);
 }
