@@ -14,7 +14,7 @@ public class Server
 
     public int Port => _port;
 
-    public async Task RunServer()
+    public async Task RunServerAsync()
     {
         var listener = new TcpListener(IPAddress.Any, _port);
         listener.Start();
@@ -31,11 +31,6 @@ public class Server
                     while (true)
                     {
                         var data = await reader.ReadLineAsync();
-                        // if (string.IsNullOrEmpty(data))
-                        // {
-                        //     Console.WriteLine("oqnronqwr");
-                        //     continue;
-                        // }
 
                         var query = data.Split(" ");
                         Console.WriteLine($"Received query: {query[0]} {query[1]}");
@@ -65,9 +60,6 @@ public class Server
                             }
                         }
                     }
-                }
-                catch (Exception)
-                {
                 }
                 finally
                 {
