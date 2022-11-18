@@ -5,100 +5,114 @@ using System.Net.Sockets;
 
 public class Server
 {
-    private readonly int _port;
+    private readonly string _path;
+    private readonly TcpListener _listener;
 
     public Server(int port)
     {
-        _port = port;
+        _path = "./";
+        _listener = new TcpListener(IPAddress.Any, port);
     }
 
-    public int Port => _port;
-
-    public async Task RunServerAsync()
+    public Server(int port, string pathToTheServer)
     {
-        var listener = new TcpListener(IPAddress.Any, _port);
-        listener.Start();
+        _path = pathToTheServer;
+        _listener = new TcpListener(IPAddress.Any, port);
+    }
+
+    public async Task RunAsync()
+    {
+        _listener.Start();
 
         while (true)
         {
-            var socket = await listener.AcceptSocketAsync();
-            await Task.Run(async () =>
-            {
-                var stream = new NetworkStream(socket);
-                var reader = new StreamReader(stream);
-                try
-                {
-                    while (true)
-                    {
-                        var data = await reader.ReadLineAsync();
-
-                        var query = data.Split(" ");
-                        Console.WriteLine($"Received query: {query[0]} {query[1]}");
-
-                        switch (query[0])
-                        {
-                            case "1":
-                            {
-                                var response = List(query[1]);
-                                var writer = new StreamWriter(stream);
-                                await writer.WriteAsync(response);
-                                await writer.FlushAsync();
-                                break;
-                            }
-
-                            case "2":
-                            {
-                                await GetAsync(query[1], stream);
-                                break;
-                            }
-
-                            default:
-                            {
-                                Console.WriteLine("Wrong query");
-                                socket.Close();
-                                return;
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    socket.Dispose();
-                }
-            });
+             await Task.Run(async () => await ProcessQueriesFromSpecificSocket());
         }
     }
 
-    public string List(string path)
+    private async Task ProcessQueriesFromSpecificSocket()
     {
+        using var socket = await _listener.AcceptSocketAsync();
+        await using var stream = new NetworkStream(socket);
+
+        while (true)
+        {
+            await ProcessQuery(stream);
+        }
+    }
+
+    private async Task ProcessQuery(NetworkStream stream)
+    {
+        var query = Array.Empty<string>();
+        var reader = new StreamReader(stream);
+        query = (await reader.ReadLineAsync())?.Split(" ") ?? Array.Empty<string>();
+
+        if (query.Length != 2)
+        {
+            // throw new InvalidOperationException("Incorrect query.");
+            return;
+        }
+
+        switch (query[0])
+        {
+            case "1":
+            {
+                await ListAsync(stream, query[1]);
+                break;
+            }
+
+            case "2":
+            {
+                await GetAsync(stream, query[1]);
+                break;
+            }
+
+            default:
+            {
+                throw new InvalidOperationException("Incorrect query.");
+            }
+        }
+    }
+
+    private async Task ListAsync(NetworkStream stream, string path)
+    {
+        path = Path.Combine(_path, path);
+
+        if (!File.Exists(path))
+        {
+            await stream.WriteAsync(BitConverter.GetBytes(-1L).ToArray().Reverse().ToArray());
+            await stream.FlushAsync();
+            return;
+        }
+
         var files = Directory.GetFiles(path).Select(Path.GetFileName).ToArray();
         var directories = Directory.GetDirectories(path).Select(Path.GetFileName).ToArray();
         var response = (files.Length + directories.Length).ToString();
 
-        foreach (var file in files)
-        {
-            response += " " + file + " false";
-        }
+        response = files.Aggregate(response, (current, file) => current + (" " + file + " false"));
+        response = directories.Aggregate(response, (current, file) => current + (" " + file + " true"));
 
-        foreach (var file in directories)
-        {
-            response += " " + file + " true";
-        }
-
-        return response;
+        var writer = new StreamWriter(stream);
+        await writer.WriteLineAsync(response);
+        await writer.FlushAsync();
+        await stream.FlushAsync();
     }
 
-    public async Task GetAsync(string path, NetworkStream stream)
+    private async Task GetAsync(NetworkStream stream, string path)
     {
+        path = Path.Combine(_path, path);
+
         if (!File.Exists(path))
         {
-            await stream.WriteAsync(BitConverter.GetBytes(-1L).ToArray().Reverse().ToArray());
+            await stream.WriteAsync(BitConverter.GetBytes(-1L).Reverse().ToArray());
             return;
         }
 
-        var sizeInBytes = BitConverter.GetBytes(new FileInfo(path).Length).ToArray();
-        await using var file = File.Open(path, FileMode.Open);
+        var sizeInBytes = BitConverter.GetBytes(new FileInfo(path).Length);
         await stream.WriteAsync(sizeInBytes);
-        await file.CopyToAsync(stream);
+
+        await using var fileStream = new FileStream(path, FileMode.Open);
+        await fileStream.CopyToAsync(stream);
+        await stream.FlushAsync();
     }
 }

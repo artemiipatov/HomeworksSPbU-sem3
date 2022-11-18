@@ -11,10 +11,15 @@ public class Client
         _client = new TcpClient(host, port);
     }
 
-    public async Task RunClientAsync()
+    public async Task RunAsync()
     {
-        await using var stream = _client.GetStream();
-        var writer = new StreamWriter(stream);
+        await using var networkStream = _client.GetStream();
+        await Task.Run(async () => await Request(networkStream));
+    }
+
+    private async Task Request(NetworkStream networkStream)
+    {
+        var writer = new StreamWriter(networkStream);
 
         while (true)
         {
@@ -26,13 +31,13 @@ public class Client
             {
                 case '1':
                 {
-                    await ListAsync(stream);
+                    await ListAsync(networkStream);
                     break;
                 }
 
                 case '2':
                 {
-                    await GetAsync(stream);
+                    await GetAsync(networkStream);
                     break;
                 }
 
@@ -45,13 +50,13 @@ public class Client
         }
     }
 
-    public async Task ListAsync(NetworkStream stream)
+    private async Task ListAsync(NetworkStream stream)
     {
         using var reader = new StreamReader(stream);
         Console.WriteLine(await reader.ReadLineAsync());
     }
 
-    public async Task GetAsync(NetworkStream stream)
+    private async Task GetAsync(NetworkStream stream)
     {
         var sizeInBytes = new byte[8];
         if (await stream.ReadAsync(sizeInBytes.AsMemory(0, 8)) != 8)
@@ -62,13 +67,24 @@ public class Client
         var size = BitConverter.ToInt64(sizeInBytes);
         Console.WriteLine(size);
 
-        var fileInBytes = new byte[size];
-        if (await stream.ReadAsync(fileInBytes.AsMemory(0, (int)size)) != size)
-        {
-            throw new Exception("Some bytes were lost for some reason."); // заменить исключение
-        }
+        await CopyStreamBytesToFile("someData.pdf", stream, size);
+    }
 
-        await using var newFile = new BinaryWriter(File.Open("someData.txt", FileMode.Create));
-        newFile.Write(fileInBytes);
+    private async Task CopyStreamBytesToFile(string path, NetworkStream networkStream, long size)
+    {
+        await using var newFile = new FileStream(path, FileMode.Create);
+
+        var bytesLeft = size;
+        var chunkSize = Math.Min(1024, bytesLeft);
+        var chunkBuffer = new byte[chunkSize];
+
+        while (bytesLeft > 0)
+        {
+            await networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
+            await newFile.WriteAsync(chunkBuffer, 0, (int)chunkSize);
+            await newFile.FlushAsync();
+            bytesLeft -= chunkSize;
+            chunkSize = Math.Min(chunkSize, bytesLeft);
+        }
     }
 }
