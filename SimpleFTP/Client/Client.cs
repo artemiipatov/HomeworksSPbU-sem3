@@ -67,6 +67,7 @@ public class Client : IDisposable
         }
 
         await CopyStream(destinationStream, size);
+
         return size;
     }
 

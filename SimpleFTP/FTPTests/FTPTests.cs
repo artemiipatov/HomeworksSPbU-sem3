@@ -11,6 +11,7 @@ public class Tests
 {
     private const int SizeOfFile = 1024 * 64;
     private const int CountOfNumbersInFile = SizeOfFile / 4;
+
     private const string DirectoryPath = "testDirectory";
     private readonly string _subdirectoryPath1 = Path.Combine(DirectoryPath, "testSubdirectory1");
     private readonly string _subdirectoryPath2 = Path.Combine(DirectoryPath, "testSubdirectory2");
@@ -46,34 +47,24 @@ public class Tests
     [Test]
     public async Task GetShouldWorkProperlyWithCorrectQuery()
     {
-        try
+        const string sourceFileName = "source.txt";
+        CreateFileAndGenerateSomeData(sourceFileName);
+
+        using var client = new Client(Port, "localhost");
+
+        await using var destinationStream = new MemoryStream();
+        var size = await client.GetAsync(sourceFileName, destinationStream);
+
+        await using var sourceStream = File.Open(sourceFileName, FileMode.Open);
+        destinationStream.Seek(0, SeekOrigin.Begin);
+        while (true)
         {
-            const string sourceFileName = "source.txt";
-            CreateFileAndGenerateSomeData(sourceFileName);
-
-            using var client = new Client(Port, "localhost");
-
-            await using var destinationStream = new MemoryStream();
-            var size = await client.GetAsync(sourceFileName, destinationStream);
-
-            await using var sourceStream = File.Open(sourceFileName, FileMode.Open);
-            destinationStream.Seek(0, SeekOrigin.Begin);
-            while (true)
+            var expectedByte = sourceStream.ReadByte();
+            var actualByte = destinationStream.ReadByte();
+            Assert.AreEqual(expectedByte, actualByte);
+            if (expectedByte == -1)
             {
-                var expectedByte = sourceStream.ReadByte();
-                var actualByte = destinationStream.ReadByte();
-                Assert.AreEqual(expectedByte, actualByte);
-                if (expectedByte == -1)
-                {
-                    break;
-                }
-            }
-        }
-        finally
-        {
-            if (File.Exists("source.txt"))
-            {
-                File.Delete("source.txt");
+                break;
             }
         }
     }
