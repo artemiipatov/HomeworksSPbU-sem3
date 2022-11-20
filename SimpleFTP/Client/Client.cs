@@ -2,89 +2,103 @@
 
 using System.Net.Sockets;
 
-public class Client
+public class Client : IDisposable
 {
     private readonly TcpClient _client;
+
+    private readonly NetworkStream _networkStream;
+    private readonly StreamWriter _writer;
+    private readonly StreamReader _reader;
 
     public Client(int port, string host)
     {
         _client = new TcpClient(host, port);
+
+        _networkStream = _client.GetStream();
+        _writer = new StreamWriter(_networkStream);
+        _reader = new StreamReader(_networkStream);
     }
 
-    public async Task RunAsync()
-    {
-        await using var networkStream = _client.GetStream();
-        await Task.Run(async () => await Request(networkStream));
-    }
+    public bool IsDisposed { get; private set; }
 
-    private async Task Request(NetworkStream networkStream)
+    public void Dispose()
     {
-        var writer = new StreamWriter(networkStream);
-
-        while (true)
+        if (IsDisposed)
         {
-            var query = Console.ReadLine();
-            await writer.WriteLineAsync(query);
-            await writer.FlushAsync();
-
-            switch (query[0])
-            {
-                case '1':
-                {
-                    await ListAsync(networkStream);
-                    break;
-                }
-
-                case '2':
-                {
-                    await GetAsync(networkStream);
-                    break;
-                }
-
-                default:
-                {
-                    Console.WriteLine("Wrong query.");
-                    break;
-                }
-            }
+            return;
         }
+
+        _reader.Dispose();
+        _writer.Dispose();
+        _networkStream.Dispose();
+        _client.Dispose();
+
+        IsDisposed = true;
     }
 
-    private async Task ListAsync(NetworkStream stream)
+    public async Task<(int, List<(string, bool)>)> ListAsync(string pathToDirectory)
     {
-        using var reader = new StreamReader(stream);
-        Console.WriteLine(await reader.ReadLineAsync());
+        var query = $"1 {pathToDirectory}";
+        await _writer.WriteLineAsync(query);
+        await _writer.FlushAsync();
+
+        var response = await _reader.ReadLineAsync();
+
+        return response is null or "-1" ? (-1, new List<(string, bool)>()) : ParseResponse(response);
     }
 
-    private async Task GetAsync(NetworkStream stream)
+    public async Task<long> GetAsync(string pathToFile, Stream destinationStream)
     {
+        var query = $"2 {pathToFile}";
+        await _writer.WriteLineAsync(query);
+        await _writer.FlushAsync();
+
         var sizeInBytes = new byte[8];
-        if (await stream.ReadAsync(sizeInBytes.AsMemory(0, 8)) != 8)
+        if (await _networkStream.ReadAsync(sizeInBytes.AsMemory(0, 8)) != 8)
         {
-            throw new Exception("Some bytes were lost for some reason."); // заменить исключение
+            throw new DataLossException("Some bytes were lost.");
         }
 
         var size = BitConverter.ToInt64(sizeInBytes);
-        Console.WriteLine(size);
+        if (size == -1)
+        {
+            // throw new FileNotFoundException("File with given path does not exist.");
+            return -1;
+        }
 
-        await CopyStreamBytesToFile("someData.pdf", stream, size);
+        await CopyStream(destinationStream, size);
+        return size;
     }
 
-    private async Task CopyStreamBytesToFile(string path, NetworkStream networkStream, long size)
+    private async Task CopyStream(Stream destinationStream, long size)
     {
-        await using var newFile = new FileStream(path, FileMode.Create);
-
         var bytesLeft = size;
         var chunkSize = Math.Min(1024, bytesLeft);
         var chunkBuffer = new byte[chunkSize];
 
         while (bytesLeft > 0)
         {
-            await networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
-            await newFile.WriteAsync(chunkBuffer, 0, (int)chunkSize);
-            await newFile.FlushAsync();
+            await _networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
+            await destinationStream.WriteAsync(chunkBuffer, 0, (int)chunkSize);
+            await destinationStream.FlushAsync();
+
             bytesLeft -= chunkSize;
             chunkSize = Math.Min(chunkSize, bytesLeft);
         }
+    }
+
+    private (int, List<(string, bool)>) ParseResponse(string response)
+    {
+        var splitResponse = response.Split(" ");
+        var numberOfElements = int.Parse(splitResponse[0]);
+        var listOfElements = new List<(string, bool)>();
+
+        for (var i = 1; i < numberOfElements * 2; i += 2)
+        {
+            var pair = (splitResponse[i], bool.Parse(splitResponse[i + 1]));
+            listOfElements.Add(pair);
+        }
+
+        return (numberOfElements, listOfElements);
     }
 }

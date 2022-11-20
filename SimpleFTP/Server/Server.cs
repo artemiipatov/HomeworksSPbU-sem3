@@ -3,14 +3,17 @@
 using System.Net;
 using System.Net.Sockets;
 
-public class Server
+public class Server : IDisposable
 {
     private readonly string _path;
+
     private readonly TcpListener _listener;
+
+    private readonly CancellationTokenSource _cts = new ();
 
     public Server(int port)
     {
-        _path = "./";
+        _path = ".";
         _listener = new TcpListener(IPAddress.Any, port);
     }
 
@@ -20,25 +23,50 @@ public class Server
         _listener = new TcpListener(IPAddress.Any, port);
     }
 
+    public bool IsDisposed { get; private set; }
+
     public async Task RunAsync()
     {
         _listener.Start();
 
-        while (true)
+        try
         {
-             await Task.Run(async () => await ProcessQueriesFromSpecificSocket());
+            var token = _cts.Token;
+            while (true)
+            {
+                await Task.Run(async () => await ProcessQueriesFromSpecificSocket(token), token);
+            }
+        }
+        finally
+        {
+            _listener.Stop();
         }
     }
 
-    private async Task ProcessQueriesFromSpecificSocket()
+    public async Task StopAsync() => _cts.Cancel();
+
+    public void Dispose()
     {
-        using var socket = await _listener.AcceptSocketAsync();
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (!_cts.IsCancellationRequested)
+        {
+            StopAsync();
+        }
+
+        _cts.Dispose();
+        IsDisposed = true;
+    }
+
+    private async Task ProcessQueriesFromSpecificSocket(CancellationToken token)
+    {
+        using var socket = await _listener.AcceptSocketAsync(token);
         await using var stream = new NetworkStream(socket);
 
-        while (true)
-        {
-            await ProcessQuery(stream);
-        }
+        await ProcessQuery(stream);
     }
 
     private async Task ProcessQuery(NetworkStream stream)
@@ -49,9 +77,19 @@ public class Server
 
         if (query.Length != 2)
         {
-            // throw new InvalidOperationException("Incorrect query.");
+            try
+            {
+                await stream.WriteAsync(BitConverter.GetBytes(-1L).Reverse().ToArray());
+            }
+            catch (IOException)
+            {
+                _cts.Cancel();
+            }
+
             return;
         }
+
+        Console.WriteLine($"Received query: {query[0]} {query[1]}");
 
         switch (query[0])
         {
@@ -69,7 +107,8 @@ public class Server
 
             default:
             {
-                throw new InvalidOperationException("Incorrect query.");
+                await stream.WriteAsync(BitConverter.GetBytes(-1L).Reverse().ToArray());
+                break;
             }
         }
     }
@@ -77,11 +116,12 @@ public class Server
     private async Task ListAsync(NetworkStream stream, string path)
     {
         path = Path.Combine(_path, path);
+        var writer = new StreamWriter(stream);
 
-        if (!File.Exists(path))
+        if (!Directory.Exists(path))
         {
-            await stream.WriteAsync(BitConverter.GetBytes(-1L).ToArray().Reverse().ToArray());
-            await stream.FlushAsync();
+            await writer.WriteAsync((-1).ToString());
+            await writer.FlushAsync();
             return;
         }
 
@@ -92,7 +132,6 @@ public class Server
         response = files.Aggregate(response, (current, file) => current + (" " + file + " false"));
         response = directories.Aggregate(response, (current, file) => current + (" " + file + " true"));
 
-        var writer = new StreamWriter(stream);
         await writer.WriteLineAsync(response);
         await writer.FlushAsync();
         await stream.FlushAsync();
