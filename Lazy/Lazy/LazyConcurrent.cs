@@ -10,7 +10,7 @@ public class LazyConcurrent<T> : ILazy<T>
 
     private bool _isCalculated;
 
-    private Func<T?> _func;
+    private Func<T?>? _func;
 
     private T? _result;
 
@@ -26,6 +26,11 @@ public class LazyConcurrent<T> : ILazy<T>
     /// <inheritdoc/>
     public T? Get()
     {
+        if (_isCalculated)
+        {
+            return _result;
+        }
+
         lock (_locker)
         {
             if (_isCalculated)
@@ -33,7 +38,8 @@ public class LazyConcurrent<T> : ILazy<T>
                 return _result;
             }
 
-            _result = _func();
+            _result = _func!(); // It cannot be null because argument is not nullable.
+            _func = null;
             _isCalculated = true;
             return _result;
         }
