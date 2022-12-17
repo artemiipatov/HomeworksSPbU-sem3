@@ -3,6 +3,7 @@ namespace MyThreadPool.Tests;
 using System;
 using System.Linq;
 using System.Threading;
+using Exceptions;
 using NUnit.Framework;
 
 public class MyThreadPoolTests
@@ -45,8 +46,9 @@ public class MyThreadPoolTests
 
             for (long i = 0; i < numberOfTasks; i++)
             {
-                Assert.AreEqual(((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2),
-                    resultArray[i].Result);
+                Assert.That(
+                    ((number - 1) * number / 2) + ((number + i - 1 + number) * i / 2),
+                    Is.EqualTo(resultArray[i].Result));
             }
         }
     }

@@ -1,6 +1,7 @@
 ﻿namespace MyThreadPool;
 
 using System.Collections.Concurrent;
+using Exceptions;
 using Optional;
 
 /// <summary>
@@ -196,7 +197,7 @@ public class MyThreadPool : IDisposable
         }
 
         /// <summary>
-        /// Makes action that can be passed to <see cref="MyThreadPool"/>
+        /// Makes action that can be passed to <see cref="MyThreadPool"/>.
         /// </summary>
         /// <returns>Action that wraps main function of the task. This action computes main function and writes the result of it to the <see cref="Result"/> of the <see cref="MyTask{TResult}"/>.</returns>
         public Action MakeExecutableAction() => () =>
