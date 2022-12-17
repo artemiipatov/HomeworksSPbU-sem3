@@ -1,7 +1,11 @@
 ﻿namespace Client;
 
+using Exceptions;
 using System.Net.Sockets;
 
+/// <summary>
+/// FTP client, that can process get and list queries.
+/// </summary>
 public class Client : IDisposable
 {
     private readonly TcpClient _client;
@@ -10,6 +14,11 @@ public class Client : IDisposable
     private readonly StreamWriter _writer;
     private readonly StreamReader _reader;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Client"/> class.
+    /// </summary>
+    /// <param name="port">The port number of the remote host to which you intend to connect.</param>
+    /// <param name="host">The DNS name of the remote host to which you intend to connect.</param>
     public Client(int port, string host)
     {
         _client = new TcpClient(host, port);
@@ -19,8 +28,14 @@ public class Client : IDisposable
         _reader = new StreamReader(_networkStream);
     }
 
+    /// <summary>
+    /// Gets a value indicating whether <see cref="Client"/> is disposed.
+    /// </summary>
     public bool IsDisposed { get; private set; }
 
+    /// <summary>
+    /// Releases all resources used by the current instance of the <see cref="Client"/> class.
+    /// </summary>
     public void Dispose()
     {
         if (IsDisposed)
@@ -36,6 +51,16 @@ public class Client : IDisposable
         IsDisposed = true;
     }
 
+    /// <summary>
+    /// Gets list of files containing in the specific directory.
+    /// </summary>
+    /// <param name="pathToDirectory">Path to the needed directory.</param>
+    /// <returns>
+    /// Returns pair where first item is the number of elements contained in the directory,
+    /// second item is the list of elements contained in the directory.
+    /// List also consists of pairs, where first item is the name of the element,
+    /// second item is a boolean value indicating, whether the element is folder or not.
+    /// </returns>
     public async Task<(int, List<(string, bool)>)> ListAsync(string pathToDirectory)
     {
         var query = $"1 {pathToDirectory}";
@@ -47,6 +72,13 @@ public class Client : IDisposable
         return response is null or "-1" ? (-1, new List<(string, bool)>()) : ParseResponse(response);
     }
 
+    /// <summary>
+    /// Downloads specific file from the server.
+    /// </summary>
+    /// <param name="pathToFile">Path to the needed file.</param>
+    /// <param name="destinationStream">Stream to which file bytes will be moved.</param>
+    /// <returns>Size of downloaded file.</returns>
+    /// <exception cref="DataLossException">Throws if some bytes were lost while downloading.</exception>
     public async Task<long> GetAsync(string pathToFile, Stream destinationStream)
     {
         var query = $"2 {pathToFile}";
@@ -62,7 +94,6 @@ public class Client : IDisposable
         var size = BitConverter.ToInt64(sizeInBytes);
         if (size == -1)
         {
-            // throw new FileNotFoundException("File with given path does not exist.");
             return -1;
         }
 
@@ -79,7 +110,13 @@ public class Client : IDisposable
 
         while (bytesLeft > 0)
         {
-            await _networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
+            var readBytesCount = await _networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
+
+            if (readBytesCount != chunkSize)
+            {
+                throw new DataLossException("Data loss during transmission and reception.");
+            }
+
             await destinationStream.WriteAsync(chunkBuffer, 0, (int)chunkSize);
             await destinationStream.FlushAsync();
 

@@ -3,6 +3,9 @@
 using System.Net;
 using System.Net.Sockets;
 
+/// <summary>
+/// FTP server, that can process get and list queries.
+/// </summary>
 public class Server : IDisposable
 {
     private readonly string _path;
@@ -11,20 +14,36 @@ public class Server : IDisposable
 
     private readonly CancellationTokenSource _cts = new ();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Server"/> class.
+    /// </summary>
+    /// <param name="port">The port that is listened for incoming connection attempts.</param>
     public Server(int port)
     {
         _path = ".";
         _listener = new TcpListener(IPAddress.Any, port);
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Server"/> class.
+    /// </summary>
+    /// <param name="port">The port that is listened for incoming connection attempts.</param>
+    /// <param name="pathToTheServer">Path to directory where the <see cref="Server"/> will be running.</param>
     public Server(int port, string pathToTheServer)
     {
         _path = pathToTheServer;
         _listener = new TcpListener(IPAddress.Any, port);
     }
 
+    /// <summary>
+    /// Gets a value indicating whether <see cref="Server"/> is disposed.
+    /// </summary>
     public bool IsDisposed { get; private set; }
 
+    /// <summary>
+    /// Starts the <see cref="Server"/>.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public async Task RunAsync()
     {
         _listener.Start();
@@ -43,8 +62,14 @@ public class Server : IDisposable
         }
     }
 
-    public async Task StopAsync() => _cts.Cancel();
+    /// <summary>
+    /// Stops the <see cref="Server"/>.
+    /// </summary>
+    public void Stop() => _cts.Cancel();
 
+    /// <summary>
+    /// Releases all resources used by the current instance of the <see cref="Server"/> class.
+    /// </summary>
     public void Dispose()
     {
         if (IsDisposed)
@@ -54,7 +79,7 @@ public class Server : IDisposable
 
         if (!_cts.IsCancellationRequested)
         {
-            StopAsync();
+            Stop();
         }
 
         _cts.Dispose();
@@ -71,9 +96,8 @@ public class Server : IDisposable
 
     private async Task ProcessQuery(NetworkStream stream)
     {
-        var query = Array.Empty<string>();
         var reader = new StreamReader(stream);
-        query = (await reader.ReadLineAsync())?.Split(" ") ?? Array.Empty<string>();
+        var query = (await reader.ReadLineAsync())?.Split(" ") ?? Array.Empty<string>();
 
         if (query.Length != 2)
         {
@@ -135,6 +159,8 @@ public class Server : IDisposable
         await writer.WriteLineAsync(response);
         await writer.FlushAsync();
         await stream.FlushAsync();
+
+        writer = null;
     }
 
     private async Task GetAsync(NetworkStream stream, string path)

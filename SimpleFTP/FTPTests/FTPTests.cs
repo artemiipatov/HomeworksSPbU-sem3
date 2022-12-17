@@ -4,11 +4,15 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
 using Server;
 using Client;
 
+[SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1600:Elements should be documented", Justification = "<Pending>")]
 public class Tests
 {
+    private const int Port = 8888;
+
     private const int SizeOfFile = 1024 * 64;
     private const int CountOfNumbersInFile = SizeOfFile / 4;
 
@@ -18,7 +22,6 @@ public class Tests
     private readonly string _fileName1 = Path.Combine(DirectoryPath, "file1.txt");
     private readonly string _fileName2 = Path.Combine(DirectoryPath, "file2.txt");
 
-    private const int Port = 8888;
     private readonly Server _server = new (Port);
 
     [OneTimeSetUp]
@@ -30,7 +33,6 @@ public class Tests
         Directory.CreateDirectory(_subdirectoryPath2);
         File.Create(_fileName1);
         File.Create(_fileName2);
-
     }
 
     [OneTimeTearDown]
@@ -53,7 +55,7 @@ public class Tests
         using var client = new Client(Port, "localhost");
 
         await using var destinationStream = new MemoryStream();
-        var size = await client.GetAsync(sourceFileName, destinationStream);
+        var size = client.GetAsync(sourceFileName, destinationStream).Result;
 
         await using var sourceStream = File.Open(sourceFileName, FileMode.Open);
         destinationStream.Seek(0, SeekOrigin.Begin);
@@ -61,7 +63,7 @@ public class Tests
         {
             var expectedByte = sourceStream.ReadByte();
             var actualByte = destinationStream.ReadByte();
-            Assert.AreEqual(expectedByte, actualByte);
+            Assert.That(expectedByte, Is.EqualTo(actualByte));
             if (expectedByte == -1)
             {
                 break;
@@ -75,11 +77,11 @@ public class Tests
         using var client = new Client(Port, "localhost");
 
         var (count, elements) = await client.ListAsync(DirectoryPath);
-        Assert.AreEqual(count, 4);
-        Assert.AreEqual(elements[0], ("file1.txt", false));
-        Assert.AreEqual(elements[1], ("file2.txt", false));
-        Assert.AreEqual(elements[2], ("testSubdirectory1", true));
-        Assert.AreEqual(elements[3], ("testSubdirectory2", true));
+        Assert.That(count, Is.EqualTo(4));
+        Assert.That(elements.Contains(("file1.txt", false)));
+        Assert.That(elements.Contains(("file2.txt", false)));
+        Assert.That(elements.Contains(("testSubdirectory1", true)));
+        Assert.That(elements.Contains(("testSubdirectory2", true)));
     }
 
     [Test]
@@ -89,7 +91,7 @@ public class Tests
 
         await using var destinationStream = new MemoryStream();
         var size = await client.GetAsync(Path.Combine(DirectoryPath, "notFile"), destinationStream);
-        Assert.AreEqual(-1L, size);
+        Assert.That(size, Is.EqualTo(-1L));
     }
 
     [Test]
@@ -98,12 +100,13 @@ public class Tests
         using var client = new Client(Port, "localhost");
 
         var size = (await client.ListAsync(Path.Combine(DirectoryPath, @"nonExistentPath"))).Item1;
-        Assert.AreEqual(-1, size);
+        Assert.That(size, Is.EqualTo(-1));
     }
 
     private void CreateFileAndGenerateSomeData(string fileName)
     {
         using var writer = new StreamWriter(File.Create(fileName));
+
         var rnd = new Random();
         for (var i = 0; i < CountOfNumbersInFile; i++)
         {
