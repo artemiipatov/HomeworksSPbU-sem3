@@ -57,7 +57,7 @@ public class Tests
         await using var destinationStream = new MemoryStream();
         var size = client.GetAsync(sourceFileName, destinationStream).Result;
 
-        await using var sourceStream = File.Open(sourceFileName, FileMode.Open);
+        await using var sourceStream = OpenWithDelay(sourceFileName);
         destinationStream.Seek(0, SeekOrigin.Begin);
         while (true)
         {
@@ -90,7 +90,7 @@ public class Tests
         using var client = new Client(Port, "localhost");
 
         await using var destinationStream = new MemoryStream();
-        var size = await client.GetAsync(Path.Combine(DirectoryPath, "notFile"), destinationStream);
+        var size = client.GetAsync(Path.Combine(DirectoryPath, "notFile"), destinationStream).Result;
         Assert.That(size, Is.EqualTo(-1L));
     }
 
@@ -111,6 +111,21 @@ public class Tests
         for (var i = 0; i < CountOfNumbersInFile; i++)
         {
             writer.Write(rnd.Next());
+        }
+    }
+
+    private FileStream OpenWithDelay(string sourceFileName)
+    {
+        while (true)
+        {
+            try
+            {
+                var stream = File.OpenRead(sourceFileName);
+                return stream;
+            }
+            catch (IOException)
+            {
+            }
         }
     }
 }
