@@ -35,13 +35,15 @@ public class TestClass : IPrinter
 
         private set
         {
+            if (!value)
+            {
+                return;
+            }
+
             lock (_locker)
             {
-                if (value)
-                {
-                    _isReady = true;
-                    Monitor.PulseAll(_locker);
-                }
+                _isReady = true;
+                Monitor.PulseAll(_locker);
             }
         }
     }
