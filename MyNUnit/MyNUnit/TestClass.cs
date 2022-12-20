@@ -3,7 +3,7 @@
 using System.Reflection;
 using Attributes;
 
-public class TestClass : IPrinter
+public class TestClass
 {
     private readonly object _classInstance;
 
@@ -18,9 +18,6 @@ public class TestClass : IPrinter
     private List<MethodInfo> _beforeClassMethods = new ();
     private List<MethodInfo> _afterClassMethods = new ();
 
-    private string _beforeClassExceptionInfo = string.Empty;
-    private string _afterClassExceptionInfo = string.Empty;
-
     private bool _isReady;
 
     public TestClass(Type classType)
@@ -28,6 +25,14 @@ public class TestClass : IPrinter
         _classInstance = Activator.CreateInstance(classType) ?? throw new InvalidOperationException();
         ParseMethods(classType);
     }
+
+    public IReadOnlyCollection<TestUnit> TestUnitList => _testUnitList.AsReadOnly();
+
+    public Type ClassType => _classInstance.GetType();
+
+    public string BeforeClassExceptionInfo { get; private set; } = string.Empty;
+
+    public string AfterClassExceptionInfo { get; private set; } = string.Empty;
 
     public bool IsReady
     {
@@ -56,14 +61,12 @@ public class TestClass : IPrinter
         }
         catch (Exception exception)
         {
-            _beforeClassExceptionInfo = exception.GetType()
-                                        + exception.Message
-                                        + (exception.StackTrace ?? string.Empty);
+            BeforeClassExceptionInfo = exception.ToString();
         }
 
         foreach (var testMethod in _testMethods)
         {
-            var testUnit = new TestUnit(this, testMethod, _beforeMethods, _afterMethods);
+            var testUnit = new TestUnit(_classInstance, testMethod, _beforeMethods, _afterMethods);
             _testUnitList.Add(testUnit);
             _taskList.Add(Task.Run(testUnit.RunTest));
         }
@@ -76,30 +79,23 @@ public class TestClass : IPrinter
         }
         catch (Exception exception)
         {
-            _afterClassExceptionInfo = exception.GetType()
-                                       + exception.Message
-                                       + (exception.StackTrace ?? string.Empty);
+            AfterClassExceptionInfo = exception.ToString();
         }
+
+        IsReady = true;
     }
 
-    public void Print()
+    public void AcceptPrinter(IPrinter printer)
     {
-        if (_beforeClassExceptionInfo.Length != 0)
+        lock (_locker)
         {
-            Console.WriteLine(_beforeClassExceptionInfo);
+            if (!IsReady)
+            {
+                Monitor.Wait(_locker);
+            }
         }
 
-        Console.WriteLine(_classInstance.GetType());
-
-        foreach (var testUnit in _testUnitList)
-        {
-            testUnit.Print();
-        }
-
-        if (_afterClassExceptionInfo.Length != 0)
-        {
-            Console.WriteLine(_afterClassExceptionInfo);
-        }
+        printer.PrintTestClassInfo(this);
     }
 
     private void RunBeforeClass()

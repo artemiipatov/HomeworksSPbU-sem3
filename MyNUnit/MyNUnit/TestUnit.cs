@@ -5,11 +5,9 @@ using System.Reflection;
 using Attributes;
 using Optional;
 
-public class TestUnit : IPrinter
+public class TestUnit
 {
-    private readonly TestClass _baseTestClass;
-
-    private readonly MethodInfo _method;
+    private readonly object _baseTestClass;
 
     private readonly List<MethodInfo> _beforeMethods;
     private readonly List<MethodInfo> _afterMethods;
@@ -17,33 +15,28 @@ public class TestUnit : IPrinter
     private readonly object _locker = new ();
 
     private Option<Type> _expected = Option.None<Type>();
-    private string _ignore = string.Empty;
-
-    private Status _status = Status.IsRunning;
-
-    private long _time;
-
-    private string _exceptionInfo = string.Empty;
 
     private bool _isReady;
 
-    public TestUnit(TestClass baseTestClass, MethodInfo method, List<MethodInfo> beforeMethods, List<MethodInfo> afterMethods)
+    public TestUnit(object baseTestClass, MethodInfo method, List<MethodInfo> beforeMethods, List<MethodInfo> afterMethods)
     {
         _baseTestClass = baseTestClass;
-        _method = method;
+        Method = method;
         _beforeMethods = beforeMethods;
         _afterMethods = afterMethods;
 
         GetAttributeProperties();
     }
 
-    private enum Status
-    {
-        Succeed,
-        Failed,
-        Ignored,
-        IsRunning,
-    }
+    public MethodInfo Method { get; }
+
+    public string Ignore { get; private set; } = string.Empty;
+
+    public Status CurrentStatus { get; private set; } = Status.IsRunning;
+
+    public long Time { get; private set; }
+
+    public string ExceptionInfo { get; private set; } = string.Empty;
 
     public bool IsReady
     {
@@ -66,9 +59,9 @@ public class TestUnit : IPrinter
 
     public void RunTest()
     {
-        if (_ignore.Length != 0)
+        if (Ignore.Length != 0)
         {
-            _status = Status.Ignored;
+            CurrentStatus = Status.Ignored;
             IsReady = true;
 
             return;
@@ -79,10 +72,10 @@ public class TestUnit : IPrinter
         try
         {
             RunBefore();
-            _method.Invoke(_baseTestClass, null);
+            Method.Invoke(_baseTestClass, null);
             RunAfter();
 
-            _status = Status.Succeed;
+            CurrentStatus = Status.Succeed;
         }
         catch (Exception exception)
         {
@@ -90,24 +83,22 @@ public class TestUnit : IPrinter
                     some: type => exception.GetType().IsAssignableFrom(type),
                     none: () => false))
             {
-                _status = Status.Succeed;
+                CurrentStatus = Status.Succeed;
             }
             else
             {
-                _status = Status.Failed;
-                _exceptionInfo = exception.GetType()
-                                 + exception.Message
-                                 + (exception.StackTrace ?? string.Empty);
+                CurrentStatus = Status.Failed;
+                ExceptionInfo = exception.ToString();
             }
         }
 
         watch.Stop();
-        _time = watch.ElapsedMilliseconds;
+        Time = watch.ElapsedMilliseconds;
 
         IsReady = true;
     }
 
-    public void Print()
+    public void AcceptPrinter(IPrinter printer)
     {
         lock (_locker)
         {
@@ -117,19 +108,7 @@ public class TestUnit : IPrinter
             }
         }
 
-        Console.WriteLine(_method.Name);
-
-        var message = _status switch
-        {
-            Status.Succeed => $"Succeed. Time: {_time} ms.",
-            Status.Failed => $"Failed. Time: {_time} ms."
-                             + Environment.NewLine
-                             + _exceptionInfo,
-            Status.Ignored => $"Ignored. Reason: {_ignore}",
-            _ => throw new ArgumentOutOfRangeException()
-        };
-
-        Console.WriteLine(message);
+        printer.PrintTestUnitInfo(this);
     }
 
     private void RunBefore()
@@ -151,9 +130,9 @@ public class TestUnit : IPrinter
     private void GetAttributeProperties()
     {
         var testAttribute = (TestAttribute)Attribute
-            .GetCustomAttributes(_method).First(attr => attr.GetType() == typeof(TestAttribute));
+            .GetCustomAttributes(Method).First(attr => attr.GetType() == typeof(TestAttribute));
 
         _expected = testAttribute.Expected;
-        _ignore = testAttribute.Ignore;
+        Ignore = testAttribute.Ignore;
     }
 }

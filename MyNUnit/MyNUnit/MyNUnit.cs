@@ -1,10 +1,35 @@
 ﻿namespace MyNUnit;
 
-public class MyNUnit : IPrinter
+public class MyNUnit
 {
-    private readonly List<AssemblyTests> _assemblyTestsList = new ();
+    private readonly List<TestAssembly> _assemblyTestsList = new ();
 
-    public void RunTestsFromAllAssemblies(string[] paths)
+    private readonly object _locker = new ();
+
+    private bool _isReady;
+
+    public IReadOnlyCollection<TestAssembly> TestAssemblyList => _assemblyTestsList.AsReadOnly();
+
+    public bool IsReady
+    {
+        get => _isReady;
+
+        private set
+        {
+            if (!value)
+            {
+                return;
+            }
+
+            lock (_locker)
+            {
+                _isReady = true;
+                Monitor.PulseAll(_locker);
+            }
+        }
+    }
+
+    public void Run(string[] paths)
     {
         foreach (var path in paths)
         {
@@ -21,6 +46,22 @@ public class MyNUnit : IPrinter
                 throw new FileNotFoundException("Non existent file or directory path.");
             }
         }
+
+        IsReady = true;
+    }
+
+
+    public void AcceptPrinter(IPrinter printer)
+    {
+        lock (_locker)
+        {
+            if (!IsReady)
+            {
+                Monitor.Wait(_locker);
+            }
+        }
+
+        printer.PrintMyNUnitInfo(this);
     }
 
     private void LoadAllAssemblies(string directoryPath)
@@ -34,17 +75,8 @@ public class MyNUnit : IPrinter
 
     private void LoadAssembly(string path)
     {
-        var assemblyTests = new AssemblyTests(path);
+        var assemblyTests = new TestAssembly(path);
         _assemblyTestsList.Add(assemblyTests);
-        Task.Run(assemblyTests.RunTests);
-    }
-
-    public void Print()
-    {
-        Console.WriteLine("MyNUnit");
-        foreach (var assemblyTests in _assemblyTestsList)
-        {
-            assemblyTests.Print();
-        }
+        Task.Run(assemblyTests.Run);
     }
 }
