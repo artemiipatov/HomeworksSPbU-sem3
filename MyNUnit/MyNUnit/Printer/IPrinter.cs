@@ -6,7 +6,7 @@ public interface IPrinter
 
     void PrintAssemblyInfo(TestAssembly testAssembly);
 
-    void PrintTestClassInfo(TestClass testClass);
+    void PrintTestTypeInfo(TestType testType);
 
     void PrintTestUnitInfo(TestUnit testUnit);
 }

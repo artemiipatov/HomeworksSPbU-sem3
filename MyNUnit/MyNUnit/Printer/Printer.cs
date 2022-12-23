@@ -14,46 +14,96 @@ public class Printer : IPrinter
     public void PrintAssemblyInfo(TestAssembly testAssembly)
     {
         Console.WriteLine(testAssembly.Assembly.GetName());
-        foreach (var testClass in testAssembly.TestClassList)
+        foreach (var testClass in testAssembly.TestTypeList)
         {
             testClass.AcceptPrinter(this);
         }
     }
 
-    public void PrintTestClassInfo(TestClass testClass)
+    public void PrintTestTypeInfo(TestType testType)
     {
-        if (testClass.BeforeClassExceptionInfo.Length != 0)
+        var testTypeHeader = $"{testType.TypeOf} {testType.GeneralStatus} {testType.TestMethodsNumber}";
+
+        var beforeClassMessage = testType.BeforeClassStatus switch
         {
-            Console.WriteLine(testClass.BeforeClassExceptionInfo);
-        }
+            Status.Failed => $"Exception occured in one of BeforeClass methods."
+                             + Environment.NewLine
+                             + testType.ExceptionInfo,
+            Status.NonPublicMethod => $"BeforeClass method should be public.",
+            Status.NonStaticMethod => $"BeforeClass method should be static.",
+            Status.NonVoidMethod => $"BeforeClass method should have void return type.",
+            Status.MethodHasArguments => $"BeforeClass method should not have any arguments.",
+            _ => string.Empty,
+        };
 
-        Console.WriteLine(testClass.ClassType);
+        Console.WriteLine(testTypeHeader);
+        Console.WriteLine(beforeClassMessage);
 
-        foreach (var testUnit in testClass.TestUnitList)
+        foreach (var testUnit in testType.TestUnitList)
         {
             testUnit.AcceptPrinter(this);
         }
 
-        if (testClass.AfterClassExceptionInfo.Length != 0)
+        var afterClassMessage = testType.AfterClassStatus switch
         {
-            Console.WriteLine(testClass.AfterClassExceptionInfo);
-        }
+            Status.Failed => $"Exception occured in one of BeforeClass methods."
+                             + Environment.NewLine
+                             + testType.ExceptionInfo,
+            Status.NonPublicMethod => $"AfterClass method should be public.",
+            Status.NonStaticMethod => $"AfterClass method should be static.",
+            Status.NonVoidMethod => $"AfterClass method should have void return type.",
+            Status.MethodHasArguments => $"AfterClass method should not have any arguments.",
+            _ => string.Empty,
+        };
+
+        Console.WriteLine(afterClassMessage);
     }
 
     public void PrintTestUnitInfo(TestUnit testUnit)
     {
-        Console.WriteLine(testUnit.Method.Name);
+        var testUnitHeader = $"{testUnit.Method.Name}. Status: {testUnit.GeneralStatus}. Time: {testUnit.Time} ms.";
 
-        var message = testUnit.CurrentStatus switch
+        var beforeMessage = testUnit.TestStatus switch
         {
-            Status.Succeed => $"Succeed. Time: {testUnit.Time} ms.",
-            Status.Failed => $"Failed. Time: {testUnit.Time} ms."
-                                      + Environment.NewLine
-                                      + testUnit.ExceptionInfo,
-            Status.Ignored => $"Ignored. Reason: {testUnit.Ignore}",
-            _ => throw new ArgumentOutOfRangeException()
+            Status.Failed => "Exception occured in one of Before methods."
+                             + Environment.NewLine
+                             + testUnit.ExceptionInfo,
+            Status.NonPublicMethod => $"Before method should be public.",
+            Status.StaticMethod => $"Before method should be static.",
+            Status.NonVoidMethod => $"Before method should have void return type.",
+            Status.MethodHasArguments => $"Before method should not have any arguments.",
+            _ => string.Empty,
         };
 
-        Console.WriteLine(message);
+        var testMessage = testUnit.TestStatus switch
+        {
+            Status.Failed => "Exception occured in Test method.",
+            Status.NonPublicMethod => $"Test method should be public.",
+            Status.StaticMethod => $"Test method should be static.",
+            Status.NonVoidMethod => $"Test method should have void return type.",
+            Status.MethodHasArguments => $"Test method should not have any arguments.",
+            _ => string.Empty,
+        };
+
+        var afterMessage = testUnit.AfterStatus switch
+        {
+            Status.Failed => $"Exception occured in one of After methods.",
+            Status.NonPublicMethod => $"After method should be public.",
+            Status.StaticMethod => $"After method should be static.",
+            Status.NonVoidMethod => $"After method should have void return type.",
+            Status.MethodHasArguments => $"After method should not have any arguments.",
+            _ => string.Empty,
+        };
+
+        Console.WriteLine(testUnitHeader);
+        Console.WriteLine(beforeMessage);
+        Console.WriteLine(testMessage);
+        Console.WriteLine(afterMessage);
+
+        if (testUnit.TestStatus == Status.TestFailed
+            || testUnit.AfterStatus == Status.TestFailed)
+        {
+            Console.WriteLine(testUnit.ExceptionInfo);
+        }
     }
 }

@@ -5,7 +5,7 @@ using Attributes;
 
 public class TestAssembly
 {
-    private readonly List<TestClass> _testClassList = new ();
+    private readonly List<TestType> _testTypeList = new ();
 
     private readonly object _locker = new ();
 
@@ -16,7 +16,7 @@ public class TestAssembly
         Assembly = Assembly.LoadFrom(path);
     }
 
-    public IReadOnlyCollection<TestClass> TestClassList => _testClassList.AsReadOnly();
+    public IReadOnlyCollection<TestType> TestTypeList => _testTypeList.AsReadOnly();
 
     public Assembly Assembly { get; }
 
@@ -41,25 +41,14 @@ public class TestAssembly
 
     public void Run()
     {
-        var testTypes = Assembly.ExportedTypes;
+        var testTypes = GetTestTypes();
 
-        var testClassTypes = (
-            from type in testTypes
-            let methods = type.GetMethods()
-            where methods.Any(
-                method =>
-                    Attribute.GetCustomAttributes(method)
-                    .Select(attr => attr.GetType())
-                    .Contains(typeof(TestAttribute)))
-            select type)
-            .ToList();
-
-        foreach (var testClassType in testClassTypes)
+        Parallel.ForEach(testTypes, testType =>
         {
-            var testClassInstance = new TestClass(testClassType);
-            _testClassList.Add(testClassInstance);
-            Task.Run(testClassInstance.RunTests);
-        }
+            var testTypeInstance = new TestType(testType);
+            _testTypeList.Add(testTypeInstance);
+            testTypeInstance.Run();
+        });
 
         IsReady = true;
     }
@@ -76,4 +65,15 @@ public class TestAssembly
 
         printer.PrintAssemblyInfo(this);
     }
+
+    private List<Type> GetTestTypes() =>
+        (from type in Assembly.ExportedTypes
+            let methods = type.GetMethods()
+            where methods.Any(
+                method =>
+                    Attribute.GetCustomAttributes(method)
+                        .Select(attr => attr.GetType())
+                        .Contains(typeof(TestAttribute)))
+            select type)
+        .ToList();
 }
