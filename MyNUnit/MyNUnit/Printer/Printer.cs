@@ -1,4 +1,6 @@
-﻿namespace MyNUnit;
+﻿namespace MyNUnit.Printer;
+
+using Internal;
 
 public class Printer : IPrinter
 {
@@ -13,7 +15,7 @@ public class Printer : IPrinter
 
     public void PrintAssemblyInfo(TestAssembly testAssembly)
     {
-        Console.WriteLine(testAssembly.Assembly.GetName());
+        Console.WriteLine($"Assembly name: {testAssembly.Assembly.GetName().Name}");
         foreach (var testClass in testAssembly.TestTypeList)
         {
             testClass.AcceptPrinter(this);
@@ -22,7 +24,9 @@ public class Printer : IPrinter
 
     public void PrintTestTypeInfo(TestType testType)
     {
-        var testTypeHeader = $"{testType.TypeOf} {testType.GeneralStatus} {testType.TestMethodsNumber}";
+        testType.Wait();
+
+        var testTypeHeader = $"Type name: {testType.TypeOf}.\nGeneral status: {testType.GeneralStatus}.\nNumber of tests: {testType.TestMethodsNumber}";
 
         var beforeClassMessage = testType.BeforeClassStatus switch
         {
@@ -46,7 +50,7 @@ public class Printer : IPrinter
 
         var afterClassMessage = testType.AfterClassStatus switch
         {
-            Status.Failed => $"Exception occured in one of BeforeClass methods."
+            Status.Failed => $"Exception occured in one of AfterClass methods."
                              + Environment.NewLine
                              + testType.ExceptionInfo,
             Status.NonPublicMethod => $"AfterClass method should be public.",
@@ -61,9 +65,9 @@ public class Printer : IPrinter
 
     public void PrintTestUnitInfo(TestUnit testUnit)
     {
-        var testUnitHeader = $"{testUnit.Method.Name}. Status: {testUnit.GeneralStatus}. Time: {testUnit.Time} ms.";
+        var testUnitHeader = $"Method name: {testUnit.Method.Name}.\nStatus: {testUnit.GeneralStatus}.\nTime: {testUnit.Time} ms.";
 
-        var beforeMessage = testUnit.TestStatus switch
+        var beforeMessage = testUnit.BeforeStatus switch
         {
             Status.Failed => "Exception occured in one of Before methods."
                              + Environment.NewLine
@@ -95,13 +99,17 @@ public class Printer : IPrinter
             _ => string.Empty,
         };
 
-        Console.WriteLine(testUnitHeader);
-        Console.WriteLine(beforeMessage);
-        Console.WriteLine(testMessage);
-        Console.WriteLine(afterMessage);
+        var message = beforeMessage
+            + (beforeMessage == string.Empty ? string.Empty : Environment.NewLine)
+            + testMessage
+            + (testMessage == string.Empty ? string.Empty : Environment.NewLine)
+            + afterMessage;
 
-        if (testUnit.TestStatus == Status.TestFailed
-            || testUnit.AfterStatus == Status.TestFailed)
+        Console.WriteLine(testUnitHeader);
+        Console.WriteLine(message);
+
+        if (testUnit.TestStatus == Status.Failed
+            || testUnit.AfterStatus == Status.Failed)
         {
             Console.WriteLine(testUnit.ExceptionInfo);
         }

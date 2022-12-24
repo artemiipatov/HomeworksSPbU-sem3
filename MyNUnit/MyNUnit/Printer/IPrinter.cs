@@ -1,8 +1,10 @@
-﻿namespace MyNUnit;
+﻿using MyNUnit.Internal;
+
+namespace MyNUnit.Printer;
 
 public interface IPrinter
 {
-    void PrintMyNUnitInfo(MyNUnit myNUnit);
+    void PrintMyNUnitInfo(Internal.MyNUnit myNUnit);
 
     void PrintAssemblyInfo(TestAssembly testAssembly);
 

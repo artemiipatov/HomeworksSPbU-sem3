@@ -1,7 +1,8 @@
-﻿namespace MyNUnit;
+﻿namespace MyNUnit.Internal;
 
 using System.Reflection;
 using Attributes;
+using Printer;
 
 public class TestAssembly
 {

@@ -1,4 +1,6 @@
-﻿namespace MyNUnit;
+﻿namespace MyNUnit.Internal;
+
+using Printer;
 
 public class MyNUnit
 {
@@ -31,7 +33,7 @@ public class MyNUnit
 
     public void Run(string[] paths)
     {
-        foreach (var path in paths)
+        Parallel.ForEach(paths, path =>
         {
             if (File.Exists(path))
             {
@@ -45,7 +47,7 @@ public class MyNUnit
             {
                 throw new FileNotFoundException("Non existent file or directory path.");
             }
-        }
+        });
 
         IsReady = true;
     }

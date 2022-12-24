@@ -1,10 +1,10 @@
-﻿using System.Collections.Concurrent;
+﻿namespace MyNUnit.Internal;
 
-namespace MyNUnit;
-
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 using Attributes;
+using Printer;
 using Optional;
 
 public class TestUnit
@@ -38,7 +38,9 @@ public class TestUnit
 
     public long Time { get; private set; }
 
-    public string ExceptionInfo => new AggregateException(_exceptions).ToString();
+    public string ExceptionInfo => _exceptions.Count == 0 ?
+        string.Empty :
+        new AggregateException(_exceptions).ToString();
 
     public Status GeneralStatus
     {
@@ -244,7 +246,7 @@ public class TestUnit
 
     private Status CheckMethodSignature(MethodInfo method, Status status)
     {
-        var methodSignature = new MethodSignature(Method);
+        var methodSignature = new MethodSignature(method);
         return methodSignature switch
         {
             { IsPublic: false } => Status.NonPublicMethod,
@@ -258,7 +260,8 @@ public class TestUnit
     private void GetAttributeProperties()
     {
         var testAttribute = (TestAttribute)Attribute
-            .GetCustomAttributes(Method).First(attr => attr.GetType() == typeof(TestAttribute));
+            .GetCustomAttributes(Method)
+            .First(attr => attr.GetType() == typeof(TestAttribute));
 
         _expected = testAttribute.Expected;
         Ignore = testAttribute.Ignore;

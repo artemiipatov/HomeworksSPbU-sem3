@@ -1,9 +1,9 @@
-﻿using System.Collections.Concurrent;
+﻿namespace MyNUnit.Internal;
 
-namespace MyNUnit;
-
+using System.Collections.Concurrent;
 using System.Reflection;
 using Attributes;
+using Printer;
 
 public class TestType
 {
@@ -35,7 +35,9 @@ public class TestType
 
     public Type TypeOf => _classInstance.GetType();
 
-    public string ExceptionInfo => new AggregateException(_exceptions).ToString();
+    public string ExceptionInfo => _exceptions.Count == 0 ?
+        string.Empty :
+        new AggregateException(_exceptions).ToString();
 
     public Status BeforeClassStatus { get; private set; } = Status.IsRunning;
 
@@ -86,7 +88,9 @@ public class TestType
     {
         if (!RunBeforeClassMethods())
         {
+            AfterClassStatus = Status.Ignored;
             IsReady = true;
+
             return;
         }
 
@@ -97,16 +101,24 @@ public class TestType
         IsReady = true;
     }
 
-    public void AcceptPrinter(IPrinter printer)
+    public bool Wait()
     {
         lock (_locker)
         {
-            if (!IsReady)
+            if (IsReady)
             {
-                Monitor.Wait(_locker);
+                return true;
             }
+
+            Monitor.Wait(_locker);
         }
 
+        return true;
+    }
+
+    public void AcceptPrinter(IPrinter printer)
+    {
+        Wait();
         printer.PrintTestTypeInfo(this);
     }
 
@@ -114,9 +126,7 @@ public class TestType
     {
         foreach (var beforeClassMethod in _beforeClassMethods)
         {
-            BeforeClassStatus = CheckMethodSignature(beforeClassMethod, BeforeClassStatus);
-            if (BeforeClassStatus != Status.IsRunning
-                || !TryRunBeforeClass(beforeClassMethod))
+            if (!TryRunBeforeClass(beforeClassMethod))
             {
                 return false;
             }
@@ -131,9 +141,7 @@ public class TestType
     {
         foreach (var afterClassMethod in _afterClassMethods)
         {
-            AfterClassStatus = CheckMethodSignature(afterClassMethod, AfterClassStatus);
-            if (AfterClassStatus != Status.IsRunning
-                || !TryRunAfterClass(afterClassMethod))
+            if (!TryRunAfterClass(afterClassMethod))
             {
                 return false;
             }
@@ -150,11 +158,18 @@ public class TestType
         {
             var testUnit = new TestUnit(_classInstance, testMethod, _beforeMethods, _afterMethods);
             _testUnitList.Add(testUnit);
+            testUnit.Run();
         });
     }
 
     private bool TryRunBeforeClass(MethodInfo beforeClassMethod)
     {
+        BeforeClassStatus = CheckMethodSignature(beforeClassMethod, BeforeClassStatus);
+        if (BeforeClassStatus != Status.IsRunning)
+        {
+            return false;
+        }
+
         try
         {
             beforeClassMethod.Invoke(null, null);
@@ -170,6 +185,12 @@ public class TestType
 
     private bool TryRunAfterClass(MethodInfo afterClassMethod)
     {
+        AfterClassStatus = CheckMethodSignature(afterClassMethod, AfterClassStatus);
+        if (AfterClassStatus != Status.IsRunning)
+        {
+            return false;
+        }
+
         try
         {
             afterClassMethod.Invoke(null, null);
@@ -185,7 +206,7 @@ public class TestType
 
     private void ParseMethods(Type classType)
     {
-        var methods = classType.GetMethods(BindingFlags.Static).ToList();
+        var methods = classType.GetMethods().ToList();
 
         _testMethods = GetMethodsWithSpecificAttribute(methods, typeof(TestAttribute));
         _beforeMethods = GetMethodsWithSpecificAttribute(methods, typeof(BeforeAttribute));
