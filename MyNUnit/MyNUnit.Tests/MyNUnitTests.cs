@@ -10,6 +10,7 @@ public class MyNUnitTests
     {
         var testType = new TestType(typeof(AbstractClassExample));
         testType.Run();
+        Assert.That(testType.GeneralStatus, Is.EqualTo(Status.AbstractType));
     }
 
     [TestCase(typeof(BeforeExample))]
@@ -19,6 +20,7 @@ public class MyNUnitTests
     public void TestAssistantMethods(Type classExample)
     {
         var testType = new TestType(classExample);
+        testType.Run();
         var actualStatus = testType.TestUnitList.First().GeneralStatus; 
         Assert.That(actualStatus, Is.EqualTo(Status.Succeed));
     }
@@ -27,6 +29,7 @@ public class MyNUnitTests
     public void TestMethods()
     {
         var testType = new TestType(typeof(TestCasesExample));
+        testType.Run();
 
         foreach (var testUnit in testType.TestUnitList)
         {

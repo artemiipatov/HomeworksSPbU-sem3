@@ -25,6 +25,15 @@ public class TestType
 
     public TestType(Type classType)
     {
+        TypeOf = classType;
+
+        if (classType.IsAbstract)
+        {
+            BeforeClassStatus = Status.Ignored;
+            AfterClassStatus = Status.Ignored;
+            return;
+        }
+
         _classInstance = Activator.CreateInstance(classType) ?? throw new InvalidOperationException();
         ParseMethods(classType);
     }
@@ -33,7 +42,7 @@ public class TestType
 
     public int TestMethodsNumber => _testMethods.Count;
 
-    public Type TypeOf => _classInstance.GetType();
+    public Type TypeOf { get; }
 
     public string ExceptionInfo => _exceptions.Count == 0 ?
         string.Empty :
@@ -47,6 +56,11 @@ public class TestType
     {
         get
         {
+            if (TypeOf.IsAbstract)
+            {
+                return Status.AbstractType;
+            }
+
             if (BeforeClassStatus == Status.IsRunning
                 || AfterClassStatus == Status.IsRunning
                 || _testUnitList.Select(testUnit => testUnit.GeneralStatus).Contains(Status.IsRunning))

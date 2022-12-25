@@ -11,5 +11,6 @@ public enum Status
     NonVoidMethod,
     NonPublicMethod,
     MethodHasArguments,
+    AbstractType,
     Ignored,
 }

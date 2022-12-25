@@ -229,7 +229,7 @@ public class TestUnit
         catch (TargetInvocationException exception)
         {
             if (_expected.Match(
-                    some: type => exception.GetType().IsAssignableFrom(type),
+                    some: type => exception.InnerException?.GetType() == type,
                     none: () => false))
             {
                 TestStatus = Status.CaughtExpectedException;
