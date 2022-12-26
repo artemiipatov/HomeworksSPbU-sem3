@@ -133,6 +133,11 @@ public class TestType
         RunTestMethods();
         RunAfterClassMethods();
 
+        if (Status == TestTypeStatus.IsRunning)
+        {
+            _status = TestTypeStatus.Succeed;
+        }
+
         IsReady = true;
     }
 

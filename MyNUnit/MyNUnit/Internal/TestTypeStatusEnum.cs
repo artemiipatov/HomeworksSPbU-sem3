@@ -3,30 +3,52 @@
 public enum TestTypeStatus
 {
     /// <summary>
-    /// Tests passed.
+    /// There are no failed tests.
     /// </summary>
     Succeed,
 
     /// <summary>
-    /// Tests is still running.
+    /// Tests are still running.
     /// </summary>
     IsRunning,
 
     /// <summary>
-    /// Tests failed.
+    /// At least one of tests failed.
     /// </summary>
     TestsFailed,
 
+    /// <summary>
+    /// One of BeforeClass methods failed.
+    /// </summary>
     BeforeClassFailed,
 
+    /// <summary>
+    /// One of AfterClass methods failed.
+    /// </summary>
     AfterClassFailed,
 
     /// <summary>
-    /// TestAn expected exception was caught wile running test
+    /// One of BeforeClass/AfterClass methods is not static.
     /// </summary>
     NonStaticMethod,
+
+    /// <summary>
+    /// One of BeforeClass/AfterClass methods has non void return type.
+    /// </summary>
     NonVoidMethod,
+
+    /// <summary>
+    /// One of BeforeClass/AfterClass methods is not public.
+    /// </summary>
     NonPublicMethod,
+
+    /// <summary>
+    /// One of BeforeClass/AfterClass methods has arguments.
+    /// </summary>
     MethodHasArguments,
+
+    /// <summary>
+    /// Test type is abstract.
+    /// </summary>
     AbstractType,
 }
