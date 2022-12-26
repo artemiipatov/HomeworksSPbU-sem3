@@ -1,8 +1,7 @@
-﻿using Optional;
-
-namespace MyNUnit.Tests.TestFiles;
+﻿namespace MyNUnit.Tests.TestFiles;
 
 using Attributes;
+using Exceptions;
 
 public class TestCasesExample
 {

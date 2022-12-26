@@ -200,27 +200,24 @@ public class TestUnit
         }
     }
 
-    private bool TryRunAfter(MethodInfo after)
+    private void TryRunAfter(MethodInfo after)
     {
         try
         {
             after.Invoke(_baseTestClass, null);
-            return true;
         }
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
             SetStatus(TestUnitStatus.AfterFailed);
-            return false;
         }
     }
 
-    private bool TryRunTest()
+    private void TryRunTest()
     {
         try
         {
             Method.Invoke(_baseTestClass, null);
-            return true;
         }
         catch (TargetInvocationException exception)
         {
@@ -229,12 +226,11 @@ public class TestUnit
                     none: () => false))
             {
                 SetStatus(TestUnitStatus.CaughtExpectedException);
-                return true;
+                return;
             }
 
             _exceptions.Add(exception);
             SetStatus(TestUnitStatus.TestFailed);
-            return false;
         }
     }
 

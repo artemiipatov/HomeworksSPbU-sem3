@@ -1,5 +1,8 @@
 ﻿namespace MyNUnit.Internal;
 
+/// <summary>
+/// Represents current status of the <see cref="TestType"/>.
+/// </summary>
 public enum TestTypeStatus
 {
     /// <summary>

@@ -7,7 +7,6 @@ using System.Reflection;
 /// </summary>
 public class MethodSignature
 {
-
     /// <summary>
     /// Initializes a new instance of the <see cref="MethodSignature"/> class.
     /// </summary>
@@ -38,7 +37,7 @@ public class MethodSignature
     public bool HasArguments => this.Method.GetParameters().Length != 0;
 
     /// <summary>
-    /// Gets a value indicating the return type of the method is void.
+    /// Gets a value indicating whether the return type of the method is void.
     /// </summary>
     public bool IsVoid => this.Method.ReturnType == typeof(void);
 }

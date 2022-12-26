@@ -4,7 +4,7 @@ namespace MyNUnit.Tests.TestFiles;
 
 public class BeforeClassExample
 {
-    public static int StaticVariable = 0; 
+    public static int StaticVariable; 
     
     [BeforeClass]
     public static void BeforeClass()

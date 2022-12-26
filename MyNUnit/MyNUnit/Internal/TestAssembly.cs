@@ -30,7 +30,7 @@ public class TestAssembly
     public IReadOnlyCollection<TestType> TestTypeList => _testTypeList.AsReadOnly();
 
     /// <summary>
-    /// Assembly with test types.
+    /// Gets assembly with test types.
     /// </summary>
     public Assembly Assembly { get; }
 

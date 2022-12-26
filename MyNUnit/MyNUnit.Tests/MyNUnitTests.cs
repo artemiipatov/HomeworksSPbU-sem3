@@ -47,6 +47,7 @@ public class MyNUnitTests
             { Method.Name: "NonVoidReturnType" } => TestUnitStatus.NonVoidMethod,
             { Method.Name: "HasArguments" } => TestUnitStatus.MethodHasArguments,
             { Method.Name: "PrivateMethod" } => TestUnitStatus.NonPublicMethod,
+            _ => throw new ArgumentOutOfRangeException(nameof(testUnit), testUnit, null)
         };
      
 }

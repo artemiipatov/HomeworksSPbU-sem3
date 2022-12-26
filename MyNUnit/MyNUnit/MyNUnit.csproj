@@ -5,6 +5,8 @@
         <TargetFramework>net7.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <NoWarn>$(NoWarn),SA1633,SA1200,SA1101,SA1309</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

@@ -6,11 +6,11 @@ using Attributes;
 using Printer;
 
 /// <summary>
-/// 
+/// Abstraction for creating instance of test type, running BeforeClass, AfterClass methods and test units withing current instance.
 /// </summary>
 public class TestType
 {
-    private readonly object _classInstance;
+    private readonly object _classInstance = new ();
 
     private readonly List<TestUnit> _testUnitList = new ();
 
@@ -35,8 +35,6 @@ public class TestType
     /// <exception cref="InvalidOperationException">Throws if instance of the current type cannot be created.</exception>
     public TestType(Type classType)
     {
-        TypeOf = classType;
-
         if (classType.IsAbstract)
         {
             SetStatus(TestTypeStatus.AbstractType);
@@ -58,11 +56,6 @@ public class TestType
     /// Gets number of <see cref="TestAttribute"/> methods.
     /// </summary>
     public int TestMethodsNumber => _testMethods.Count;
-
-    /// <summary>
-    /// Gets type of test class.
-    /// </summary>
-    public Type TypeOf { get; }
 
     /// <summary>
     /// Gets information of caught unexpected exceptions.
@@ -257,23 +250,21 @@ public class TestType
         }
     }
 
-    private bool TryRunAfterClass(MethodInfo afterClassMethod)
+    private void TryRunAfterClass(MethodInfo afterClassMethod)
     {
         if (!CheckMethodSignature(afterClassMethod))
         {
-            return false;
+            return;
         }
 
         try
         {
             afterClassMethod.Invoke(null, null);
-            return true;
         }
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
             SetStatus(TestTypeStatus.AfterClassFailed);
-            return false;
         }
     }
 
