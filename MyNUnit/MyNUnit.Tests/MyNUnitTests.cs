@@ -10,7 +10,7 @@ public class MyNUnitTests
     {
         var testType = new TestType(typeof(AbstractClassExample));
         testType.Run();
-        Assert.That(testType.GeneralStatus, Is.EqualTo(Status.AbstractType));
+        Assert.That(testType.Status, Is.EqualTo(TestTypeStatus.AbstractType));
     }
 
     [TestCase(typeof(BeforeExample))]
@@ -21,8 +21,8 @@ public class MyNUnitTests
     {
         var testType = new TestType(classExample);
         testType.Run();
-        var actualStatus = testType.TestUnitList.First().GeneralStatus; 
-        Assert.That(actualStatus, Is.EqualTo(Status.Succeed));
+        var actualStatus = testType.TestUnitList.First().Status; 
+        Assert.That(actualStatus, Is.EqualTo(TestUnitStatus.Succeed));
     }
     
     [Test]
@@ -33,19 +33,20 @@ public class MyNUnitTests
 
         foreach (var testUnit in testType.TestUnitList)
         {
-            Assert.That(testUnit.TestStatus, Is.EqualTo(GetExpectedStatus(testUnit)));
+            Assert.That(testUnit.Status, Is.EqualTo(GetExpectedStatus(testUnit)));
         }
     }
-
-    private Status GetExpectedStatus(TestUnit testUnit) =>
+  
+    private TestUnitStatus GetExpectedStatus(TestUnit testUnit) =>
         testUnit switch
         {
-            { Method.Name: "Success" } => Status.Succeed,
-            { Method.Name: "Ignore" } => Status.Ignored,
-            { Method.Name: "ExpectedException" } => Status.CaughtExpectedException,
-            { Method.Name: "UnexpectedException" } => Status.Failed,
-            { Method.Name: "NonVoidReturnType" } => Status.NonVoidMethod,
-            { Method.Name: "HasArguments" } => Status.MethodHasArguments,
-            { Method.Name: "PrivateMethod" } => Status.NonPublicMethod,
+            { Method.Name: "Success" } => TestUnitStatus.Succeed,
+            { Method.Name: "Ignore" } => TestUnitStatus.Ignored,
+            { Method.Name: "ExpectedException" } => TestUnitStatus.CaughtExpectedException,
+            { Method.Name: "UnexpectedException" } => TestUnitStatus.TestFailed,
+            { Method.Name: "NonVoidReturnType" } => TestUnitStatus.NonVoidMethod,
+            { Method.Name: "HasArguments" } => TestUnitStatus.MethodHasArguments,
+            { Method.Name: "PrivateMethod" } => TestUnitStatus.NonPublicMethod,
         };
+     
 }

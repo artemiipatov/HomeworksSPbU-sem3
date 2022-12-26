@@ -23,14 +23,17 @@ public class TestType
 
     private bool _isReady;
 
+    private TestTypeStatus _status = TestTypeStatus.IsRunning;
+
     public TestType(Type classType)
     {
         TypeOf = classType;
 
         if (classType.IsAbstract)
         {
-            BeforeClassStatus = Status.Ignored;
-            AfterClassStatus = Status.Ignored;
+            _status = TestTypeStatus.AbstractType;
+            IsReady = true;
+
             return;
         }
 
@@ -48,36 +51,51 @@ public class TestType
         string.Empty :
         new AggregateException(_exceptions).ToString();
 
-    public Status BeforeClassStatus { get; private set; } = Status.IsRunning;
-
-    public Status AfterClassStatus { get; private set; } = Status.IsRunning;
-
-    public Status GeneralStatus
+    public TestTypeStatus Status
     {
         get
         {
-            if (TypeOf.IsAbstract)
+            if (_testUnitList.Select(testUnit => testUnit.Status)
+                .Any(status =>
+                    status is TestUnitStatus.AfterFailed
+                        or TestUnitStatus.BeforeFailed
+                        or TestUnitStatus.AfterFailed))
             {
-                return Status.AbstractType;
+                return TestTypeStatus.TestsFailed;
             }
 
-            if (BeforeClassStatus == Status.IsRunning
-                || AfterClassStatus == Status.IsRunning
-                || _testUnitList.Select(testUnit => testUnit.GeneralStatus).Contains(Status.IsRunning))
-            {
-                return Status.IsRunning;
-            }
-
-            if (BeforeClassStatus != Status.Succeed
-                || AfterClassStatus != Status.Succeed
-                || _testUnitList.Select(testUnit => testUnit.GeneralStatus).Any(status => status != Status.Succeed))
-            {
-                return Status.Failed;
-            }
-
-            return Status.Succeed;
+            return _status;
         }
     }
+
+    public int SucceededTestsCount
+    {
+        get
+        {
+            Wait();
+            return _testUnitList.Select(testUnit => testUnit.Status)
+                .Count(status =>
+                    status is TestUnitStatus.Succeed
+                        or TestUnitStatus.CaughtExpectedException);
+        }
+    }
+
+    public int SkippedTestsCount
+    {
+        get
+        {
+            Wait();
+            return _testUnitList.Select(testUnit => testUnit.Status)
+                .Count(status =>
+                    status is TestUnitStatus.Ignored
+                        or TestUnitStatus.MethodHasArguments
+                        or TestUnitStatus.NonPublicMethod
+                        or TestUnitStatus.NonVoidMethod
+                        or TestUnitStatus.StaticMethod);
+        }
+    }
+
+    public int FailedTestsCount => TestMethodsNumber - SkippedTestsCount - SucceededTestsCount;
 
     public bool IsReady
     {
@@ -100,34 +118,35 @@ public class TestType
 
     public void Run()
     {
+        if (IsReady)
+        {
+            return;
+        }
+
         if (!RunBeforeClassMethods())
         {
-            AfterClassStatus = Status.Ignored;
             IsReady = true;
 
             return;
         }
 
         RunTestMethods();
-
         RunAfterClassMethods();
 
         IsReady = true;
     }
 
-    public bool Wait()
+    public void Wait()
     {
         lock (_locker)
         {
             if (IsReady)
             {
-                return true;
+                return;
             }
 
             Monitor.Wait(_locker);
         }
-
-        return true;
     }
 
     public void AcceptPrinter(IPrinter printer)
@@ -146,24 +165,15 @@ public class TestType
             }
         }
 
-        BeforeClassStatus = Status.Succeed;
-
         return true;
     }
 
-    private bool RunAfterClassMethods()
+    private void RunAfterClassMethods()
     {
-        foreach (var afterClassMethod in _afterClassMethods)
+        Parallel.ForEach(_afterClassMethods, afterClassMethod =>
         {
-            if (!TryRunAfterClass(afterClassMethod))
-            {
-                return false;
-            }
-        }
-
-        AfterClassStatus = Status.Succeed;
-
-        return true;
+            TryRunAfterClass(afterClassMethod);
+        });
     }
 
     private void RunTestMethods()
@@ -178,8 +188,7 @@ public class TestType
 
     private bool TryRunBeforeClass(MethodInfo beforeClassMethod)
     {
-        BeforeClassStatus = CheckMethodSignature(beforeClassMethod, BeforeClassStatus);
-        if (BeforeClassStatus != Status.IsRunning)
+        if (!CheckMethodSignature(beforeClassMethod))
         {
             return false;
         }
@@ -192,15 +201,14 @@ public class TestType
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
-            BeforeClassStatus = Status.Failed;
+            SetStatus(TestTypeStatus.BeforeClassFailed);
             return false;
         }
     }
 
     private bool TryRunAfterClass(MethodInfo afterClassMethod)
     {
-        AfterClassStatus = CheckMethodSignature(afterClassMethod, AfterClassStatus);
-        if (AfterClassStatus != Status.IsRunning)
+        if (!CheckMethodSignature(afterClassMethod))
         {
             return false;
         }
@@ -213,10 +221,30 @@ public class TestType
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
-            AfterClassStatus = Status.Failed;
+            SetStatus(TestTypeStatus.AfterClassFailed);
             return false;
         }
     }
+
+    private bool CheckMethodSignature(MethodInfo method)
+    {
+        var methodSignature = new MethodSignature(method);
+
+        var previousStatus = _status;
+
+        _status = methodSignature switch
+        {
+            { IsPublic: false } => TestTypeStatus.NonPublicMethod,
+            { IsStatic: false } => TestTypeStatus.NonStaticMethod,
+            { HasArguments: true } => TestTypeStatus.MethodHasArguments,
+            { IsVoid: false } => TestTypeStatus.NonVoidMethod,
+            _ => _status,
+        };
+
+        return _status == previousStatus;
+    }
+
+    private void SetStatus(TestTypeStatus status) => _status = status;
 
     private void ParseMethods(Type classType)
     {
@@ -227,19 +255,6 @@ public class TestType
         _afterMethods = GetMethodsWithSpecificAttribute(methods, typeof(AfterAttribute));
         _beforeClassMethods = GetMethodsWithSpecificAttribute(methods, typeof(BeforeClassAttribute));
         _afterClassMethods = GetMethodsWithSpecificAttribute(methods, typeof(AfterClassAttribute));
-    }
-
-    private Status CheckMethodSignature(MethodInfo method, Status status)
-    {
-        var methodSignature = new MethodSignature(method);
-        return methodSignature switch
-        {
-            { IsPublic: false } => Status.NonPublicMethod,
-            { IsStatic: false } => Status.NonStaticMethod,
-            { HasArguments: true } => Status.MethodHasArguments,
-            { IsVoid: false } => Status.NonVoidMethod,
-            _ => status,
-        };
     }
 
     private List<MethodInfo> GetMethodsWithSpecificAttribute(List<MethodInfo> methods, Type attributeType) =>

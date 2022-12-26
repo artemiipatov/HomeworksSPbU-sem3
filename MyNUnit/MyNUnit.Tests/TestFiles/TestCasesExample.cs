@@ -1,4 +1,6 @@
-﻿namespace MyNUnit.Tests.TestFiles;
+﻿using Optional;
+
+namespace MyNUnit.Tests.TestFiles;
 
 using Attributes;
 

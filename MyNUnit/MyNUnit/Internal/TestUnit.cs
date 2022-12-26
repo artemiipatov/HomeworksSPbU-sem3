@@ -22,6 +22,8 @@ public class TestUnit
 
     private bool _isReady;
 
+    private TestUnitStatus _status = TestUnitStatus.IsRunning;
+
     public TestUnit(object baseTestClass, MethodInfo method, List<MethodInfo> beforeMethods, List<MethodInfo> afterMethods)
     {
         _baseTestClass = baseTestClass;
@@ -36,40 +38,17 @@ public class TestUnit
 
     public Option<string> Ignore { get; private set; } = Option.None<string>();
 
+    public string ExpectedExceptionName => _expected.Match(
+        some: exceptionType => exceptionType.ToString(),
+        none: () => string.Empty);
+
     public long Time { get; private set; }
 
     public string ExceptionInfo => _exceptions.Count == 0 ?
         string.Empty :
         new AggregateException(_exceptions).ToString();
 
-    public Status GeneralStatus
-    {
-        get
-        {
-            if (BeforeStatus == Status.IsRunning
-                || TestStatus == Status.IsRunning
-                || AfterStatus == Status.IsRunning)
-            {
-                return Status.IsRunning;
-            }
-
-            if (BeforeStatus != Status.Succeed
-                || (TestStatus != Status.Succeed
-                 && TestStatus != Status.CaughtExpectedException)
-                || AfterStatus != Status.Succeed)
-            {
-                return Status.Failed;
-            }
-
-            return Status.Succeed;
-        }
-    }
-
-    public Status BeforeStatus { get; private set; } = Status.IsRunning;
-
-    public Status TestStatus { get; private set; } = Status.IsRunning;
-
-    public Status AfterStatus { get; private set; } = Status.IsRunning;
+    public TestUnitStatus Status => _status;
 
     public bool IsReady
     {
@@ -92,21 +71,13 @@ public class TestUnit
 
     public void Run()
     {
-        if (Ignore.HasValue)
+        if (IsReady)
         {
-            TestStatus = Status.Ignored;
-            BeforeStatus = Status.Ignored;
-            AfterStatus = Status.Ignored;
-            IsReady = true;
-
             return;
         }
 
-        TestStatus = CheckMethodSignature(Method, TestStatus);
-        if (TestStatus != Status.IsRunning)
+        if (!CheckAllMethods())
         {
-            BeforeStatus = Status.Ignored;
-            AfterStatus = Status.Ignored;
             IsReady = true;
 
             return;
@@ -117,10 +88,9 @@ public class TestUnit
         if (!RunBeforeMethods())
         {
             watch.Stop();
-            Time = watch.ElapsedMilliseconds; // Сделать extension к секундомеру.
+            Time = watch.ElapsedMilliseconds;
 
-            TestStatus = Status.Ignored;
-            AfterStatus = Status.Ignored;
+            SetStatus(TestUnitStatus.BeforeFailed);
             IsReady = true;
 
             return;
@@ -131,6 +101,11 @@ public class TestUnit
 
         watch.Stop();
         Time = watch.ElapsedMilliseconds;
+
+        if (_status == TestUnitStatus.IsRunning)
+        {
+            SetStatus(TestUnitStatus.Succeed);
+        }
 
         IsReady = true;
     }
@@ -158,8 +133,6 @@ public class TestUnit
             }
         }
 
-        BeforeStatus = Status.Succeed;
-
         return true;
     }
 
@@ -169,21 +142,10 @@ public class TestUnit
         {
             TryRunAfter(after);
         });
-
-        if (AfterStatus == Status.IsRunning)
-        {
-            AfterStatus = Status.Succeed;
-        }
     }
 
     private bool TryRunBefore(MethodInfo before)
     {
-        BeforeStatus = CheckMethodSignature(before, BeforeStatus);
-        if (BeforeStatus != Status.IsRunning)
-        {
-            return false;
-        }
-
         try
         {
             before.Invoke(_baseTestClass, null);
@@ -192,19 +154,13 @@ public class TestUnit
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
-            BeforeStatus = Status.Failed;
+            SetStatus(TestUnitStatus.BeforeFailed);
             return false;
         }
     }
 
     private bool TryRunAfter(MethodInfo after)
     {
-        AfterStatus = CheckMethodSignature(after, AfterStatus);
-        if (AfterStatus != Status.IsRunning)
-        {
-            return false;
-        }
-
         try
         {
             after.Invoke(_baseTestClass, null);
@@ -213,7 +169,7 @@ public class TestUnit
         catch (TargetInvocationException exception)
         {
             _exceptions.Add(exception);
-            AfterStatus = Status.Failed;
+            SetStatus(TestUnitStatus.AfterFailed);
             return false;
         }
     }
@@ -223,7 +179,6 @@ public class TestUnit
         try
         {
             Method.Invoke(_baseTestClass, null);
-            TestStatus = Status.Succeed;
             return true;
         }
         catch (TargetInvocationException exception)
@@ -232,30 +187,49 @@ public class TestUnit
                     some: type => exception.InnerException?.GetType() == type,
                     none: () => false))
             {
-                TestStatus = Status.CaughtExpectedException;
+                SetStatus(TestUnitStatus.CaughtExpectedException);
                 return true;
             }
-            else
-            {
-                _exceptions.Add(exception);
-                TestStatus = Status.Failed;
-                return false;
-            }
+
+            _exceptions.Add(exception);
+            SetStatus(TestUnitStatus.TestFailed);
+            return false;
         }
     }
 
-    private Status CheckMethodSignature(MethodInfo method, Status status)
+    private bool CheckAllMethods() =>
+        CheckMethodSignature(Method)
+        && (_beforeMethods.Count == 0
+            || _beforeMethods.Any(CheckMethodSignature))
+        && (_afterMethods.Count == 0
+            || _afterMethods.Any(CheckMethodSignature));
+
+    private bool CheckMethodSignature(MethodInfo method)
     {
-        var methodSignature = new MethodSignature(method);
-        return methodSignature switch
+        if (Ignore.HasValue)
         {
-            { IsPublic: false } => Status.NonPublicMethod,
-            { IsStatic: true } => Status.StaticMethod,
-            { HasArguments: true } => Status.MethodHasArguments,
-            { IsVoid: false } => Status.NonVoidMethod,
-            _ => status,
+            SetStatus(TestUnitStatus.Ignored);
+
+            return false;
+        }
+
+        var methodSignature = new MethodSignature(method);
+
+        var previousStatus = _status;
+
+        _status = methodSignature switch
+        {
+            { IsPublic: false } => TestUnitStatus.NonPublicMethod,
+            { IsStatic: true } => TestUnitStatus.StaticMethod,
+            { HasArguments: true } => TestUnitStatus.MethodHasArguments,
+            { IsVoid: false } => TestUnitStatus.NonVoidMethod,
+            _ => _status,
         };
+
+        return _status == previousStatus;
     }
+
+    private void SetStatus(TestUnitStatus status) => _status = status;
 
     private void GetAttributeProperties()
     {

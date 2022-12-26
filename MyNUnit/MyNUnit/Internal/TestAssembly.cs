@@ -21,6 +21,19 @@ public class TestAssembly
 
     public Assembly Assembly { get; }
 
+    public TestAssemblyStatus Status => FailedTestsCount > 0
+        ? TestAssemblyStatus.Failed
+        : TestAssemblyStatus.Succeed;
+
+    public int FailedTestsCount =>
+        _testTypeList.Select(testType => testType.FailedTestsCount).Sum();
+
+    public int SkippedTestsCount =>
+        _testTypeList.Select(testType => testType.SkippedTestsCount).Sum();
+
+    public int SucceededTestsCount =>
+        _testTypeList.Select(testType => testType.SucceededTestsCount).Sum();
+
     public bool IsReady
     {
         get => _isReady;

@@ -1,5 +1,4 @@
-﻿using MyNUnit;
-using MyNUnit.Printer;
+﻿using MyNUnit.Printer;
 
 if (args.Length == 0)
 {
