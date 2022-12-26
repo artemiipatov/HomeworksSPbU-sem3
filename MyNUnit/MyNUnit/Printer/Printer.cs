@@ -2,8 +2,10 @@
 
 using Internal;
 
+/// <inheritdoc />
 public class Printer : IPrinter
 {
+    /// <inheritdoc />
     public void PrintMyNUnitInfo(MyNUnit myNUnit)
     {
         Console.WriteLine();
@@ -14,6 +16,7 @@ public class Printer : IPrinter
         }
     }
 
+    /// <inheritdoc />
     public void PrintAssemblyInfo(TestAssembly testAssembly)
     {
         var testAssemblyHeader = $"Assembly name: {testAssembly.Assembly.GetName().Name}."
@@ -31,6 +34,7 @@ public class Printer : IPrinter
         }
     }
 
+    /// <inheritdoc />
     public void PrintTestTypeInfo(TestType testType)
     {
         foreach (var testUnit in testType.TestUnitList)
@@ -39,6 +43,7 @@ public class Printer : IPrinter
         }
     }
 
+    /// <inheritdoc />
     public void PrintTestUnitInfo(TestUnit testUnit)
     {
         var testUnitHeader = $"Method name: {testUnit.Method.Name}."

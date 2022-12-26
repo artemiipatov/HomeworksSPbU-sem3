@@ -5,6 +5,9 @@ using System.Reflection;
 using Attributes;
 using Printer;
 
+/// <summary>
+/// 
+/// </summary>
 public class TestType
 {
     private readonly object _classInstance;
@@ -25,13 +28,18 @@ public class TestType
 
     private TestTypeStatus _status = TestTypeStatus.IsRunning;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TestType"/> class.
+    /// </summary>
+    /// <param name="classType">Type of class with tests.</param>
+    /// <exception cref="InvalidOperationException">Throws if instance of the current type cannot be created.</exception>
     public TestType(Type classType)
     {
         TypeOf = classType;
 
         if (classType.IsAbstract)
         {
-            _status = TestTypeStatus.AbstractType;
+            SetStatus(TestTypeStatus.AbstractType);
             IsReady = true;
 
             return;
@@ -41,16 +49,32 @@ public class TestType
         ParseMethods(classType);
     }
 
+    /// <summary>
+    /// Gets read only collection of <see cref="TestUnit"/> of current test type.
+    /// </summary>
     public IReadOnlyCollection<TestUnit> TestUnitList => _testUnitList.AsReadOnly();
 
+    /// <summary>
+    /// Gets number of <see cref="TestAttribute"/> methods.
+    /// </summary>
     public int TestMethodsNumber => _testMethods.Count;
 
+    /// <summary>
+    /// Gets type of test class.
+    /// </summary>
     public Type TypeOf { get; }
 
+    /// <summary>
+    /// Gets information of caught unexpected exceptions.
+    /// If no unexpected exceptions was caught, returns empty string.
+    /// </summary>
     public string ExceptionInfo => _exceptions.Count == 0 ?
         string.Empty :
         new AggregateException(_exceptions).ToString();
 
+    /// <summary>
+    /// Gets status of test type run.
+    /// </summary>
     public TestTypeStatus Status
     {
         get
@@ -68,6 +92,9 @@ public class TestType
         }
     }
 
+    /// <summary>
+    /// Gets number of succeeded tests.
+    /// </summary>
     public int SucceededTestsCount
     {
         get
@@ -80,6 +107,9 @@ public class TestType
         }
     }
 
+    /// <summary>
+    /// Gets number of skipped tests.
+    /// </summary>
     public int SkippedTestsCount
     {
         get
@@ -95,8 +125,14 @@ public class TestType
         }
     }
 
+    /// <summary>
+    /// Gets number of failed tests.
+    /// </summary>
     public int FailedTestsCount => TestMethodsNumber - SkippedTestsCount - SucceededTestsCount;
 
+    /// <summary>
+    /// Gets a value indicating whether all tests finished.
+    /// </summary>
     public bool IsReady
     {
         get => _isReady;
@@ -116,6 +152,9 @@ public class TestType
         }
     }
 
+    /// <summary>
+    /// Runs tests from test type.
+    /// </summary>
     public void Run()
     {
         if (IsReady)
@@ -141,6 +180,9 @@ public class TestType
         IsReady = true;
     }
 
+    /// <summary>
+    /// Blocks current thread until all tests are finished.
+    /// </summary>
     public void Wait()
     {
         lock (_locker)
@@ -154,6 +196,10 @@ public class TestType
         }
     }
 
+    /// <summary>
+    /// Accepts <see cref="IPrinter"/> instance.
+    /// </summary>
+    /// <param name="printer">Objects that implements <see cref="IPrinter"/>.</param>
     public void AcceptPrinter(IPrinter printer)
     {
         Wait();

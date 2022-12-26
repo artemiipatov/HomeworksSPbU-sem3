@@ -7,6 +7,9 @@ using Attributes;
 using Printer;
 using Optional;
 
+/// <summary>
+/// Abstraction for running Before, Test, After methods. Contains information of test run.
+/// </summary>
 public class TestUnit
 {
     private readonly object _baseTestClass;
@@ -24,6 +27,13 @@ public class TestUnit
 
     private TestUnitStatus _status = TestUnitStatus.IsRunning;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TestUnit"/> class.
+    /// </summary>
+    /// <param name="baseTestClass">An instance of class where current method is running.</param>
+    /// <param name="method">Method with <see cref="TestAttribute"/>.</param>
+    /// <param name="beforeMethods">List of methods with <see cref="BeforeAttribute"/>.</param>
+    /// <param name="afterMethods">List of methods with <see cref="AfterAttribute"/>.</param>
     public TestUnit(object baseTestClass, MethodInfo method, List<MethodInfo> beforeMethods, List<MethodInfo> afterMethods)
     {
         _baseTestClass = baseTestClass;
@@ -34,22 +44,46 @@ public class TestUnit
         GetAttributeProperties();
     }
 
+    /// <summary>
+    /// Gets <see cref="MethodInfo"/> of current <see cref="TestAttribute"/> method.
+    /// </summary>
     public MethodInfo Method { get; }
 
+    /// <summary>
+    /// Gets optional value -- reason for ignoring current method.
+    /// If the value is missing, method should not be ignored.
+    /// </summary>
     public Option<string> Ignore { get; private set; } = Option.None<string>();
 
+    /// <summary>
+    /// Gets name of expected exception.
+    /// If expected exception is not given, returns empty string.
+    /// </summary>
     public string ExpectedExceptionName => _expected.Match(
         some: exceptionType => exceptionType.ToString(),
         none: () => string.Empty);
 
+    /// <summary>
+    /// Gets test run time.
+    /// </summary>
     public long Time { get; private set; }
 
+    /// <summary>
+    /// Gets information of caught unexpected exceptions.
+    /// If no unexpected exceptions was caught, returns empty string.
+    /// </summary>
     public string ExceptionInfo => _exceptions.Count == 0 ?
         string.Empty :
         new AggregateException(_exceptions).ToString();
 
+    /// <summary>
+    /// Gets status of current test run.
+    /// </summary>
     public TestUnitStatus Status => _status;
 
+    /// <summary>
+    /// Gets a value indicating whether test run finished.
+    /// </summary>
     public bool IsReady
     {
         get => _isReady;
@@ -69,6 +103,9 @@ public class TestUnit
         }
     }
 
+    /// <summary>
+    /// Runs test unit.
+    /// </summary>
     public void Run()
     {
         if (IsReady)
@@ -110,6 +147,10 @@ public class TestUnit
         IsReady = true;
     }
 
+    /// <summary>
+    /// Accepts <see cref="IPrinter"/> instance.
+    /// </summary>
+    /// <param name="printer">Objects that implements <see cref="IPrinter"/>.</param>
     public void AcceptPrinter(IPrinter printer)
     {
         lock (_locker)

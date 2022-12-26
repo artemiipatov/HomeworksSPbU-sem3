@@ -4,6 +4,9 @@ using System.Reflection;
 using Attributes;
 using Printer;
 
+/// <summary>
+/// Abstraction for running test types from the assembly.
+/// </summary>
 public class TestAssembly
 {
     private readonly List<TestType> _testTypeList = new ();
@@ -12,28 +15,53 @@ public class TestAssembly
 
     private bool _isReady;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TestAssembly"/> class.
+    /// </summary>
+    /// <param name="path">Path to assembly.</param>
     public TestAssembly(string path)
     {
         Assembly = Assembly.LoadFrom(path);
     }
 
+    /// <summary>
+    /// Gets read only collection of <see cref="TestType"/>.
+    /// </summary>
     public IReadOnlyCollection<TestType> TestTypeList => _testTypeList.AsReadOnly();
 
+    /// <summary>
+    /// Assembly with test types.
+    /// </summary>
     public Assembly Assembly { get; }
 
+    /// <summary>
+    /// Gets status of current test assembly run.
+    /// </summary>
     public TestAssemblyStatus Status => FailedTestsCount > 0
         ? TestAssemblyStatus.Failed
         : TestAssemblyStatus.Succeed;
 
+    /// <summary>
+    /// Gets number of failed tests in the assembly.
+    /// </summary>
     public int FailedTestsCount =>
         _testTypeList.Select(testType => testType.FailedTestsCount).Sum();
 
+    /// <summary>
+    /// Gets number of skipped tests in the assembly.
+    /// </summary>
     public int SkippedTestsCount =>
         _testTypeList.Select(testType => testType.SkippedTestsCount).Sum();
 
+    /// <summary>
+    /// Gets number of succeeded tests in the assembly.
+    /// </summary>
     public int SucceededTestsCount =>
         _testTypeList.Select(testType => testType.SucceededTestsCount).Sum();
 
+    /// <summary>
+    /// Gets a value indicating whether all tests from the assembly are finished.
+    /// </summary>
     public bool IsReady
     {
         get => _isReady;
@@ -53,6 +81,9 @@ public class TestAssembly
         }
     }
 
+    /// <summary>
+    /// Runs tests from assembly.
+    /// </summary>
     public void Run()
     {
         var testTypes = GetTestTypes();
@@ -67,6 +98,10 @@ public class TestAssembly
         IsReady = true;
     }
 
+    /// <summary>
+    /// Accepts <see cref="IPrinter"/> instance.
+    /// </summary>
+    /// <param name="printer">Objects that implements <see cref="IPrinter"/>.</param>
     public void AcceptPrinter(IPrinter printer)
     {
         lock (_locker)

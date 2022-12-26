@@ -8,7 +8,6 @@ using Optional;
 [AttributeUsage(AttributeTargets.Method)]
 public class TestAttribute : MyNUnitAttribute
 {
-
     /// <summary>
     /// Initializes a new instance of the <see cref="TestAttribute"/> class.
     /// </summary>
@@ -40,12 +39,12 @@ public class TestAttribute : MyNUnitAttribute
     }
 
     /// <summary>
-    /// Reason of ignoring test method.
+    /// Gets reason of ignoring test method.
     /// </summary>
     public Option<string> Ignore { get; } = Option.None<string>();
 
     /// <summary>
-    /// Type of expected exception.
+    /// Gets type of expected exception.
     /// </summary>
     public Option<Type> Expected { get; } = Option.None<Type>();
 }
