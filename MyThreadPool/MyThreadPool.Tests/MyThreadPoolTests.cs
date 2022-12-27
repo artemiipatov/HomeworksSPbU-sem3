@@ -175,7 +175,7 @@ public class MyThreadPoolTests
 
         var function = () =>
         {
-            Thread.Sleep(500);
+            Thread.Sleep(100);
             return Thread.CurrentThread.ManagedThreadId;
         };
 
@@ -201,11 +201,11 @@ public class MyThreadPoolTests
     [Test]
     public void ResultAfterShutDownInitiatesException()
     {
-        var threadPool = new MyThreadPool(2);
+        using var threadPool = new MyThreadPool(1);
 
         var function = () =>
         {
-            Thread.Sleep(10000);
+            Thread.Sleep(6000);
             return 10;
         };
 
@@ -222,7 +222,5 @@ public class MyThreadPoolTests
             var result = task.Result;
             shutDownTask.Wait();
         });
-
-        threadPool.Dispose();
     }
 }

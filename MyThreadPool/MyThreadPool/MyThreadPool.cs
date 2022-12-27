@@ -24,7 +24,10 @@ public class MyThreadPool : IDisposable
     /// <param name="numberOfThreads">Amount of threads on thread pool.</param>
     public MyThreadPool(int numberOfThreads)
     {
-        ArgumentNullException.ThrowIfNull(numberOfThreads);
+        if (numberOfThreads <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(numberOfThreads));
+        }
 
         _threads = new Thread[numberOfThreads];
         StartThreads();
@@ -146,7 +149,7 @@ public class MyThreadPool : IDisposable
     {
         private readonly MyThreadPool _threadPool;
 
-        private readonly List<Action> _continuationsList = new();
+        private readonly BlockingCollection<Action> _continuations = new();
 
         private readonly Func<TResult> _mainFunction;
 
@@ -196,7 +199,7 @@ public class MyThreadPool : IDisposable
                 none: () =>
             _resultOption.Match(
                 some: result => result,
-                none: Wait));
+                none: ExecuteRightNow));
 
         /// <inheritdoc />
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
@@ -210,7 +213,7 @@ public class MyThreadPool : IDisposable
 
             var continuationAction = newTask.MakeExecutableAction();
 
-            lock (_continuationsList)
+            lock (_continuations)
             {
                 if (IsCompleted)
                 {
@@ -218,7 +221,14 @@ public class MyThreadPool : IDisposable
                 }
                 else
                 {
-                    _continuationsList.Add(continuationAction);
+                    try
+                    {
+                        _continuations.Add(continuationAction, _token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw new MyThreadPoolTerminatedException();
+                    }
                 }
             }
 
@@ -266,11 +276,11 @@ public class MyThreadPool : IDisposable
 
         private void MoveContinuationsToMainQueue()
         {
-            lock (_continuationsList)
+            lock (_continuations)
             {
                 try
                 {
-                    foreach (var continuation in _continuationsList)
+                    foreach (var continuation in _continuations)
                     {
                         _threadPool.SubmitContinuationWithoutTasking(continuation);
                     }
@@ -281,7 +291,7 @@ public class MyThreadPool : IDisposable
             }
         }
 
-        private TResult Wait()
+        private TResult ExecuteRightNow()
         {
             lock (_executionLocker)
             {
@@ -297,10 +307,12 @@ public class MyThreadPool : IDisposable
                     throw exception;
                 }
 
-                Monitor.Wait(_executionLocker);
-
-                return Result;
+                var result = _mainFunction.Invoke();
+                _resultOption = result.Some();
+                IsCompleted = true;
             }
+
+            return Result;
         }
     }
 }
