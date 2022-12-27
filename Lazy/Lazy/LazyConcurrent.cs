@@ -8,7 +8,7 @@ public class LazyConcurrent<TResult> : ILazy<TResult>
 {
     private readonly object _locker = new();
 
-    private bool _isCalculated;
+    private volatile bool _isCalculated;
 
     private Func<TResult?>? _func;
 
