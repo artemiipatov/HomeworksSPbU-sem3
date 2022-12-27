@@ -1,8 +1,7 @@
-﻿using MyThreadPool.Exceptions;
-
-namespace MyThreadPool;
+﻿namespace MyThreadPool;
 
 using System.Collections.Concurrent;
+using Exceptions;
 using Optional;
 
 /// <summary>
@@ -14,7 +13,9 @@ public class MyThreadPool : IDisposable
 
     private readonly BlockingCollection<Action> _actionsQueue = new();
 
-    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly object _locker = new();
+
+    private CancellationTokenSource _cts = new();
 
     private bool _isDisposed;
 
@@ -37,7 +38,7 @@ public class MyThreadPool : IDisposable
     /// Gets a value indicating whether <see cref="MyThreadPool"/> is shutdown.
     /// </summary>
     /// <returns>True if <see cref="MyThreadPool"/> is shutdown; otherwise, false.</returns>
-    public bool IsTerminated { get; private set; }
+    public bool IsTerminated => _cts.IsCancellationRequested;
 
     /// <summary>
     /// Adds new task to this <see cref="MyThreadPool"/>.
@@ -53,15 +54,16 @@ public class MyThreadPool : IDisposable
             throw new MyThreadPoolTerminatedException();
         }
 
-        var newTask = new MyTask<TResult>(this, func, _cancellationTokenSource.Token);
+        var newTask = new MyTask<TResult>(this, func);
 
-        try
+        lock (_locker)
         {
-            _actionsQueue.Add(newTask.MakeExecutableAction(), _cancellationTokenSource.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new MyThreadPoolTerminatedException("Thread pool is shut down.");
+            if (IsTerminated)
+            {
+                throw new MyThreadPoolTerminatedException("Thread pool is shut down.");
+            }
+
+            _actionsQueue.Add(newTask.MakeExecutableAction());
         }
 
         return newTask;
@@ -78,11 +80,14 @@ public class MyThreadPool : IDisposable
             throw new MyThreadPoolTerminatedException("Thread pool is already shut down.");
         }
 
-        IsTerminated = true;
-        _cancellationTokenSource.Cancel();
-        foreach (var thread in _threads)
+        lock (_locker)
         {
-            thread.Join();
+            _cts.Cancel();
+
+            foreach (var thread in _threads)
+            {
+                thread.Join();
+            }
         }
     }
 
@@ -107,18 +112,18 @@ public class MyThreadPool : IDisposable
     {
         for (var i = 0; i < _threads.Length; i++)
         {
-            _threads[i] = new Thread(() => ThreadActions(_cancellationTokenSource.Token));
+            _threads[i] = new Thread(() => ThreadActions());
             _threads[i].Start();
         }
     }
 
-    private void ThreadActions(CancellationToken cancellationToken)
+    private void ThreadActions()
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (!IsTerminated)
             {
-                var action = _actionsQueue.Take(cancellationToken);
+                var action = _actionsQueue.Take(_cts.Token);
 
                 action.Invoke();
             }
@@ -137,7 +142,7 @@ public class MyThreadPool : IDisposable
 
         try
         {
-            _actionsQueue.Add(continuationAction, _cancellationTokenSource.Token);
+            _actionsQueue.Add(continuationAction);
         }
         catch (OperationCanceledException)
         {
@@ -155,8 +160,6 @@ public class MyThreadPool : IDisposable
 
         private readonly object _executionLocker = new();
 
-        private readonly CancellationToken _token;
-
         private Option<TResult> _resultOption = Option.None<TResult>();
 
         private Option<AggregateException> _exception = Option.None<AggregateException>();
@@ -168,13 +171,11 @@ public class MyThreadPool : IDisposable
         /// </summary>
         /// <param name="threadPool"><see cref="MyThreadPool"/> which will compute the task.</param>
         /// <param name="mainFunction">Function that should be computed.</param>
-        /// <param name="cancellationToken">A token that can be used to cancel operations.</param>
         /// <exception cref="ArgumentException">Throws if <paramref name="threadPool"/> or <paramref name="mainFunction"/> is null.</exception>
-        public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction, CancellationToken cancellationToken)
+        public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction)
         {
             _threadPool = threadPool ?? throw new ArgumentNullException();
             _mainFunction = mainFunction ?? throw new ArgumentNullException();
-            _token = cancellationToken;
         }
 
         /// <inheritdoc />
@@ -209,7 +210,7 @@ public class MyThreadPool : IDisposable
                 throw new MyThreadPoolTerminatedException();
             }
 
-            var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc), _token);
+            var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
 
             var continuationAction = newTask.MakeExecutableAction();
 
@@ -223,7 +224,7 @@ public class MyThreadPool : IDisposable
                 {
                     try
                     {
-                        _continuations.Add(continuationAction, _token);
+                        _continuations.Add(continuationAction);
                     }
                     catch (OperationCanceledException)
                     {
