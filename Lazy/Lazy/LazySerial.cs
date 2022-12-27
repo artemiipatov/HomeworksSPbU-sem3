@@ -8,7 +8,7 @@ public class LazySerial<T> : ILazy<T>
 {
     private Func<T?>? _func;
 
-    private bool _isCalculated = false;
+    private bool _isCalculated;
 
     private T? _result;
 
@@ -29,7 +29,7 @@ public class LazySerial<T> : ILazy<T>
             return _result;
         }
 
-        _result = _func();
+        _result = _func!(); // It cannot be null because argument is not nullable.
         _func = null;
         _isCalculated = true;
         return _result;
