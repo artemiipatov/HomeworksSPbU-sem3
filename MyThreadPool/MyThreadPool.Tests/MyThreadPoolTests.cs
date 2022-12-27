@@ -1,10 +1,9 @@
-using System.Threading.Tasks;
-
 namespace MyThreadPool.Tests;
 
 using System;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Exceptions;
 using NUnit.Framework;
 
@@ -125,7 +124,9 @@ public class MyThreadPoolTests
             {
                 for (var i = 0; i < 1000; i++)
                 {
-                    continuationsArrays[numberOfArray, i] = threadPool.Submit(MultiplyBy10(i)).ContinueWith(value => value.ToString());
+                    continuationsArrays[numberOfArray, i] = threadPool
+                        .Submit(MultiplyBy10(i))
+                        .ContinueWith(value => value.ToString());
                 }
             });
 
@@ -204,7 +205,7 @@ public class MyThreadPoolTests
 
         var function = () =>
         {
-            Thread.Sleep(5000);
+            Thread.Sleep(10000);
             return 10;
         };
 
