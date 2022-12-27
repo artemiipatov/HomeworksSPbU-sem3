@@ -1,7 +1,8 @@
-﻿namespace MyThreadPool;
+﻿using MyThreadPool.Exceptions;
+
+namespace MyThreadPool;
 
 using System.Collections.Concurrent;
-using Exceptions;
 using Optional;
 
 /// <summary>
@@ -23,10 +24,7 @@ public class MyThreadPool : IDisposable
     /// <param name="numberOfThreads">Amount of threads on thread pool.</param>
     public MyThreadPool(int numberOfThreads)
     {
-        if (numberOfThreads <= 0)
-        {
-            throw new ArgumentException("Number of threads should be greater than zero.");
-        }
+        ArgumentNullException.ThrowIfNull(numberOfThreads);
 
         _threads = new Thread[numberOfThreads];
         StartThreads();
@@ -52,9 +50,16 @@ public class MyThreadPool : IDisposable
             throw new MyThreadPoolTerminatedException();
         }
 
-        IMyTask<TResult> newTask = new MyTask<TResult>(this, func);
+        var newTask = new MyTask<TResult>(this, func, _cancellationTokenSource.Token);
 
-        _actionsQueue.Add((newTask as MyTask<TResult>).MakeExecutableAction());
+        try
+        {
+            _actionsQueue.Add(newTask.MakeExecutableAction(), _cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new MyThreadPoolTerminatedException("Thread pool is shut down.");
+        }
 
         return newTask;
     }
@@ -95,12 +100,6 @@ public class MyThreadPool : IDisposable
         }
     }
 
-    private static Func<TResult> MakeResultFunction<TResult>(TResult result) =>
-        () => result;
-
-    private static Func<TResult> MakeAggregateExceptionFunction<TResult>(Exception innerException) =>
-        () => throw new AggregateException(innerException);
-
     private void StartThreads()
     {
         for (var i = 0; i < _threads.Length; i++)
@@ -133,7 +132,14 @@ public class MyThreadPool : IDisposable
             throw new MyThreadPoolTerminatedException("Thread pool was shut down.");
         }
 
-        _actionsQueue.Add(continuationAction);
+        try
+        {
+            _actionsQueue.Add(continuationAction, _cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new MyThreadPoolTerminatedException("Thread pool is shut down.");
+        }
     }
 
     private class MyTask<TResult> : IMyTask<TResult>
@@ -146,28 +152,51 @@ public class MyThreadPool : IDisposable
 
         private readonly object _executionLocker = new();
 
-        private Option<Func<TResult>> _resultOption = Option.None<Func<TResult>>();
+        private readonly CancellationToken _token;
+
+        private Option<TResult> _resultOption = Option.None<TResult>();
+
+        private Option<AggregateException> _exception = Option.None<AggregateException>();
+
+        private bool _isCompleted;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MyTask{TResult}"/> class.
         /// </summary>
         /// <param name="threadPool"><see cref="MyThreadPool"/> which will compute the task.</param>
         /// <param name="mainFunction">Function that should be computed.</param>
+        /// <param name="cancellationToken">A token that can be used to cancel operations.</param>
         /// <exception cref="ArgumentException">Throws if <paramref name="threadPool"/> or <paramref name="mainFunction"/> is null.</exception>
-        public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction)
+        public MyTask(MyThreadPool threadPool, Func<TResult> mainFunction, CancellationToken cancellationToken)
         {
-            _threadPool = threadPool ?? throw new ArgumentException("Thread pool is null.");
-            _mainFunction = mainFunction ?? throw new ArgumentException("Function is null.");
+            _threadPool = threadPool ?? throw new ArgumentNullException();
+            _mainFunction = mainFunction ?? throw new ArgumentNullException();
+            _token = cancellationToken;
         }
 
         /// <inheritdoc />
-        public bool IsCompleted { get; private set; }
+        public bool IsCompleted
+        {
+            get => _isCompleted;
+
+            private set
+            {
+                lock (_executionLocker)
+                {
+                    _isCompleted = value;
+                    Monitor.PulseAll(_executionLocker);
+                }
+            }
+        }
 
         /// <inheritdoc />
         public TResult Result =>
+            _exception.Match(
+                some: exception => throw exception,
+                none: () =>
             _resultOption.Match(
-                some: resultFunc => resultFunc.Invoke(),
-                none: ExecuteRightNow());
+                some: result => result,
+                none: Wait));
 
         /// <inheritdoc />
         public IMyTask<TNewResult> ContinueWith<TNewResult>(Func<TResult, TNewResult> continuationFunc)
@@ -177,7 +206,7 @@ public class MyThreadPool : IDisposable
                 throw new MyThreadPoolTerminatedException();
             }
 
-            var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc));
+            var newTask = new MyTask<TNewResult>(_threadPool, MakeFunctionWithoutArguments(continuationFunc), _token);
 
             var continuationAction = newTask.MakeExecutableAction();
 
@@ -205,11 +234,11 @@ public class MyThreadPool : IDisposable
             try
             {
                 var result = Execute();
-                _resultOption = MakeResultFunction(result).Some();
+                _resultOption = result.Some();
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                _resultOption = MakeAggregateExceptionFunction<TResult>(ex).Some();
+                _exception = new AggregateException(exception).Some();
             }
             finally
             {
@@ -239,33 +268,39 @@ public class MyThreadPool : IDisposable
         {
             lock (_continuationsList)
             {
-                foreach (var continuation in _continuationsList)
+                try
                 {
-                    _threadPool._actionsQueue.Add(continuation);
+                    foreach (var continuation in _continuationsList)
+                    {
+                        _threadPool.SubmitContinuationWithoutTasking(continuation);
+                    }
+                }
+                catch (MyThreadPoolTerminatedException)
+                {
                 }
             }
         }
 
-        private Func<TResult> ExecuteRightNow()
+        private TResult Wait()
         {
             lock (_executionLocker)
             {
-                if (!IsCompleted)
+                if (IsCompleted)
                 {
-                    if (_threadPool.IsTerminated)
-                    {
-                        var ex = MakeAggregateExceptionFunction<TResult>(new MyThreadPoolTerminatedException("Thread pool had been terminated before task was computed."));
-                        _resultOption = ex.Some();
-                        ex.Invoke();
-                    }
-
-                    var result = _mainFunction.Invoke();
-                    _resultOption = MakeResultFunction(result).Some();
-                    IsCompleted = true;
+                    return Result;
                 }
-            }
 
-            return _resultOption.ValueOr(() => () => throw new Exception()); // сделать другое исключение
+                if (_threadPool.IsTerminated)
+                {
+                    var exception = new AggregateException(new MyThreadPoolTerminatedException());
+                    _exception = exception.Some();
+                    throw exception;
+                }
+
+                Monitor.Wait(_executionLocker);
+
+                return Result;
+            }
         }
     }
 }

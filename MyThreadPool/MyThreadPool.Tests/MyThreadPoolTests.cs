@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace MyThreadPool.Tests;
 
 using System;
@@ -98,7 +100,7 @@ public class MyThreadPoolTests
 
         var function = () =>
         {
-            Thread.Sleep(1000);
+            Thread.Sleep(5000);
             return 10;
         };
 
@@ -126,6 +128,7 @@ public class MyThreadPoolTests
                     continuationsArrays[numberOfArray, i] = threadPool.Submit(MultiplyBy10(i)).ContinueWith(value => value.ToString());
                 }
             });
+
             threads[j].Start();
         }
 
@@ -150,7 +153,7 @@ public class MyThreadPoolTests
 
         var function = () =>
         {
-            Thread.Sleep(1000);
+            Thread.Sleep(2000);
             return 10;
         };
 
@@ -167,28 +170,58 @@ public class MyThreadPoolTests
     [TestCase(6)]
     public void MyThreadPoolSuccessfullyCreatesSpecifiedNumberOfThreads(int numberOfThreads)
     {
+        var numberOfTasks = numberOfThreads * 10;
+
         var function = () =>
         {
-            Thread.Sleep(300);
+            Thread.Sleep(500);
             return Thread.CurrentThread.ManagedThreadId;
         };
 
         using var myThreadPool = new MyThreadPool(numberOfThreads);
-        var tasks = new IMyTask<int>[numberOfThreads];
-        var tasksResults = new int[numberOfThreads];
+        var tasks = new IMyTask<int>[numberOfTasks];
+        var tasksResults = new int[numberOfTasks];
 
-        for (int i = 0; i < numberOfThreads; i++)
+        for (int i = 0; i < numberOfTasks; i++)
         {
             tasks[i] = myThreadPool.Submit(function);
         }
 
-        Thread.Sleep(2000);
+        Thread.Sleep(5000);
 
-        for (var i = 0; i < numberOfThreads; i++)
+        for (var i = 0; i < numberOfTasks; i++)
         {
             tasksResults[i] = tasks[i].Result;
         }
 
-        Assert.IsTrue(tasksResults.Distinct().Count() == tasksResults.Length);
+        Assert.That(tasksResults.Distinct().Count(), Is.EqualTo(numberOfThreads));
+    }
+
+    [Test]
+    public void ResultAfterShutDownInitiatesException()
+    {
+        var threadPool = new MyThreadPool(2);
+
+        var function = () =>
+        {
+            Thread.Sleep(5000);
+            return 10;
+        };
+
+        var task = threadPool.Submit(function);
+
+        Assert.Throws<AggregateException>(() =>
+        {
+            var shutDownTask = Task.Run(() =>
+            {
+                Thread.Sleep(1000);
+                threadPool.Shutdown();
+            });
+
+            var result = task.Result;
+            shutDownTask.Wait();
+        });
+
+        threadPool.Dispose();
     }
 }
