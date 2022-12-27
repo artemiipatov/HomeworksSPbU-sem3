@@ -57,7 +57,7 @@ public class Server : IDisposable
             while (!token.IsCancellationRequested)
             {
                 var socket = await _listener.AcceptSocketAsync(token);
-                _tasks.Add(Task.Run(async () => await ProcessQueriesFromSpecificSocket(socket, token), token));
+                _tasks.Add(Task.Run(async () => await ProcessQueriesFromSpecificSocket(socket), token));
             }
         }
         finally
@@ -91,7 +91,7 @@ public class Server : IDisposable
         IsDisposed = true;
     }
 
-    private async Task ProcessQueriesFromSpecificSocket(Socket socket, CancellationToken token)
+    private async Task ProcessQueriesFromSpecificSocket(Socket socket)
     {
         using (socket)
         {
