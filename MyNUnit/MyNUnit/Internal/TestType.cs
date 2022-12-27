@@ -10,9 +10,7 @@ using Printer;
 /// </summary>
 public class TestType
 {
-    private readonly object _classInstance = new ();
-
-    private readonly List<TestUnit> _testUnitList = new ();
+    private readonly ConcurrentQueue<TestUnit> _testUnitCollection = new ();
 
     private readonly object _locker = new ();
 
@@ -35,6 +33,8 @@ public class TestType
     /// <exception cref="InvalidOperationException">Throws if instance of the current type cannot be created.</exception>
     public TestType(Type classType)
     {
+        TypeOf = classType;
+
         if (classType.IsAbstract)
         {
             SetStatus(TestTypeStatus.AbstractType);
@@ -43,19 +43,20 @@ public class TestType
             return;
         }
 
-        _classInstance = Activator.CreateInstance(classType) ?? throw new InvalidOperationException();
         ParseMethods(classType);
     }
 
     /// <summary>
     /// Gets read only collection of <see cref="TestUnit"/> of current test type.
     /// </summary>
-    public IReadOnlyCollection<TestUnit> TestUnitList => _testUnitList.AsReadOnly();
+    public IReadOnlyCollection<TestUnit> TestUnitCollection => _testUnitCollection;
 
     /// <summary>
     /// Gets number of <see cref="TestAttribute"/> methods.
     /// </summary>
     public int TestMethodsNumber => _testMethods.Count;
+
+    public Type TypeOf { get; }
 
     /// <summary>
     /// Gets information of caught unexpected exceptions.
@@ -72,7 +73,7 @@ public class TestType
     {
         get
         {
-            if (_testUnitList.Select(testUnit => testUnit.Status)
+            if (_testUnitCollection.Select(testUnit => testUnit.Status)
                 .Any(status =>
                     status is TestUnitStatus.AfterFailed
                         or TestUnitStatus.BeforeFailed
@@ -93,7 +94,7 @@ public class TestType
         get
         {
             Wait();
-            return _testUnitList.Select(testUnit => testUnit.Status)
+            return _testUnitCollection.Select(testUnit => testUnit.Status)
                 .Count(status =>
                     status is TestUnitStatus.Succeed
                         or TestUnitStatus.CaughtExpectedException);
@@ -108,7 +109,7 @@ public class TestType
         get
         {
             Wait();
-            return _testUnitList.Select(testUnit => testUnit.Status)
+            return _testUnitCollection.Select(testUnit => testUnit.Status)
                 .Count(status =>
                     status is TestUnitStatus.Ignored
                         or TestUnitStatus.MethodHasArguments
@@ -224,8 +225,9 @@ public class TestType
     {
         Parallel.ForEach(_testMethods, testMethod =>
         {
-            var testUnit = new TestUnit(_classInstance, testMethod, _beforeMethods, _afterMethods);
-            _testUnitList.Add(testUnit);
+            var classInstance = Activator.CreateInstance(TypeOf) ?? throw new InvalidOperationException();
+            var testUnit = new TestUnit(classInstance, testMethod, _beforeMethods, _afterMethods);
+            _testUnitCollection.Enqueue(testUnit);
             testUnit.Run();
         });
     }

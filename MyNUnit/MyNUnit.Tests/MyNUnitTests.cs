@@ -21,7 +21,7 @@ public class MyNUnitTests
     {
         var testType = new TestType(classExample);
         testType.Run();
-        var actualStatus = testType.TestUnitList.First().Status; 
+        var actualStatus = testType.TestUnitCollection.First().Status; 
         Assert.That(actualStatus, Is.EqualTo(TestUnitStatus.Succeed));
     }
     
@@ -31,7 +31,7 @@ public class MyNUnitTests
         var testType = new TestType(typeof(TestCasesExample));
         testType.Run();
 
-        foreach (var testUnit in testType.TestUnitList)
+        foreach (var testUnit in testType.TestUnitCollection)
         {
             Assert.That(testUnit.Status, Is.EqualTo(GetExpectedStatus(testUnit)));
         }

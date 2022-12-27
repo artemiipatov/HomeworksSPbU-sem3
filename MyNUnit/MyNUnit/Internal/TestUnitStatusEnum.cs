@@ -35,6 +35,8 @@ public enum TestUnitStatus
     /// </summary>
     AfterFailed,
 
+    ExpectedExceptionWasNotCaught,
+
     /// <summary>
     /// Test or one of Before/After methods has non void return type.
     /// </summary>

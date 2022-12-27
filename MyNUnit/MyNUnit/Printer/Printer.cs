@@ -37,7 +37,7 @@ public class Printer : IPrinter
     /// <inheritdoc />
     public void PrintTestTypeInfo(TestType testType)
     {
-        foreach (var testUnit in testType.TestUnitList)
+        foreach (var testUnit in testType.TestUnitCollection)
         {
             testUnit.AcceptPrinter(this);
         }

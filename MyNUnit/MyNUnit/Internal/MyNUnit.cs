@@ -1,4 +1,6 @@
-﻿namespace MyNUnit.Internal;
+﻿using System.Collections.Concurrent;
+
+namespace MyNUnit.Internal;
 
 using Printer;
 
@@ -8,17 +10,16 @@ using Printer;
 /// </summary>
 public class MyNUnit
 {
-    private readonly List<TestAssembly> _assemblyTestsList = new ();
+    private readonly ConcurrentQueue<TestAssembly> _assemblyTestsList = new ();
 
     private readonly object _locker = new ();
 
-    private bool _isReady;
+    private volatile bool _isReady;
 
     /// <summary>
     /// Gets read only collection of <see cref="TestAssembly"/>.
     /// </summary>
-    public IReadOnlyCollection<TestAssembly> TestAssemblyList =>
-        _assemblyTestsList.AsReadOnly();
+    public IReadOnlyCollection<TestAssembly> TestAssemblyList => _assemblyTestsList;
 
     /// <summary>
     /// Gets a value indicating whether execution of tests from all assemblies has been completed.
@@ -92,16 +93,13 @@ public class MyNUnit
     private void LoadAllAssemblies(string directoryPath)
     {
         var assemblies = Directory.EnumerateFiles(directoryPath, "*.dll");
-        foreach (var dllPath in assemblies)
-        {
-            LoadAssembly(dllPath);
-        }
+        Parallel.ForEach(assemblies, LoadAssembly);
     }
 
     private void LoadAssembly(string path)
     {
         var assemblyTests = new TestAssembly(path);
-        _assemblyTestsList.Add(assemblyTests);
+        _assemblyTestsList.Enqueue(assemblyTests);
         Task.Run(assemblyTests.Run);
     }
 }

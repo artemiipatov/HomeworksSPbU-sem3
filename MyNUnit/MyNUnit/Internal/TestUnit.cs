@@ -218,6 +218,11 @@ public class TestUnit
         try
         {
             Method.Invoke(_baseTestClass, null);
+
+            if (_expected.HasValue)
+            {
+                SetStatus(TestUnitStatus.ExpectedExceptionWasNotCaught);
+            }
         }
         catch (TargetInvocationException exception)
         {
