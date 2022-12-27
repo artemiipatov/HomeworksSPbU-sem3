@@ -9,6 +9,8 @@
         <RootNamespace>Tests</RootNamespace>
 
         <LangVersion>11</LangVersion>
+
+        <NoWarn>$(NoWarn),SA1633,SA1200,SA1101,SA1309,SA1600</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

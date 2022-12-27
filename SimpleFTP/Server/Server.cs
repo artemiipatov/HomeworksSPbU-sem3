@@ -1,4 +1,6 @@
-﻿namespace Server;
+﻿using System.Globalization;
+
+namespace Server;
 
 using System.Net;
 using System.Net.Sockets;
@@ -11,6 +13,8 @@ public class Server : IDisposable
     private readonly string _path;
 
     private readonly TcpListener _listener;
+
+    private readonly List<Task> _tasks = new ();
 
     private readonly CancellationTokenSource _cts = new ();
 
@@ -51,13 +55,16 @@ public class Server : IDisposable
         try
         {
             var token = _cts.Token;
-            while (true)
+
+            while (!token.IsCancellationRequested)
             {
-                await Task.Run(async () => await ProcessQueriesFromSpecificSocket(token), token);
+                var socket = await _listener.AcceptSocketAsync(token);
+                _tasks.Add(Task.Run(async () => await ProcessQueriesFromSpecificSocket(socket, token), token));
             }
         }
         finally
         {
+            Task.WaitAll(_tasks.ToArray());
             _listener.Stop();
         }
     }
@@ -86,12 +93,14 @@ public class Server : IDisposable
         IsDisposed = true;
     }
 
-    private async Task ProcessQueriesFromSpecificSocket(CancellationToken token)
+    private async Task ProcessQueriesFromSpecificSocket(Socket socket, CancellationToken token)
     {
-        using var socket = await _listener.AcceptSocketAsync(token);
-        await using var stream = new NetworkStream(socket);
+        using (socket)
+        {
+            await using var stream = new NetworkStream(socket);
 
-        await ProcessQuery(stream);
+            await ProcessQuery(stream);
+        }
     }
 
     private async Task ProcessQuery(NetworkStream stream)
@@ -107,7 +116,6 @@ public class Server : IDisposable
             }
             catch (IOException)
             {
-                _cts.Cancel();
             }
 
             return;

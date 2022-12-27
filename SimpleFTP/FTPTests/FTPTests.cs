@@ -1,14 +1,15 @@
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Tests;
 
 using NUnit.Framework;
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using System.Diagnostics.CodeAnalysis;
 using Server;
 using Client;
 
-[SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1600:Elements should be documented", Justification = "<Pending>")]
 public class Tests
 {
     private const int Port = 8888;
@@ -17,10 +18,26 @@ public class Tests
     private const int CountOfNumbersInFile = SizeOfFile / 4;
 
     private const string DirectoryPath = "testDirectory";
-    private readonly string _subdirectoryPath1 = Path.Combine(DirectoryPath, "testSubdirectory1");
-    private readonly string _subdirectoryPath2 = Path.Combine(DirectoryPath, "testSubdirectory2");
     private readonly string _fileName1 = Path.Combine(DirectoryPath, "file1.txt");
     private readonly string _fileName2 = Path.Combine(DirectoryPath, "file2.txt");
+
+    private readonly string[] _subdirectoriesPaths =
+    {
+        Path.Combine(DirectoryPath, "testSubdirectory1"),
+        Path.Combine(DirectoryPath, "testSubdirectory2"),
+        Path.Combine(DirectoryPath, "testSubdirectory3"),
+        Path.Combine(DirectoryPath, "testSubdirectory4"),
+        Path.Combine(DirectoryPath, "testSubdirectory5"),
+    };
+
+    private readonly string[] _subdirectoriesFiles =
+    {
+        Path.Combine(Path.Combine(DirectoryPath, "testSubdirectory1"), "file1.txt"),
+        Path.Combine(Path.Combine(DirectoryPath, "testSubdirectory2"), "file2.txt"),
+        Path.Combine(Path.Combine(DirectoryPath, "testSubdirectory3"), "file3.txt"),
+        Path.Combine(Path.Combine(DirectoryPath, "testSubdirectory4"), "file4.txt"),
+        Path.Combine(Path.Combine(DirectoryPath, "testSubdirectory5"), "file5.txt"),
+    };
 
     private readonly Server _server = new (Port);
 
@@ -29,20 +46,38 @@ public class Tests
     {
         Task.Run(async () => await _server.RunAsync());
         Directory.CreateDirectory(DirectoryPath);
-        Directory.CreateDirectory(_subdirectoryPath1);
-        Directory.CreateDirectory(_subdirectoryPath2);
+
+        foreach (var subdirectory in _subdirectoriesPaths)
+        {
+            Directory.CreateDirectory(subdirectory);
+        }
+
         File.Create(_fileName1);
         File.Create(_fileName2);
+
+        foreach (var file in _subdirectoriesFiles)
+        {
+            File.Create(file);
+        }
     }
 
     [OneTimeTearDown]
     public void OneTimeTearDown()
     {
+        foreach (var file in _subdirectoriesFiles)
+        {
+            File.Delete(file);
+        }
+
+        foreach (var subdirectory in _subdirectoriesPaths)
+        {
+            Directory.Delete(subdirectory);
+        }
+
         File.Delete(_fileName1);
         File.Delete(_fileName2);
-        Directory.Delete(_subdirectoryPath1);
-        Directory.Delete(_subdirectoryPath2);
         Directory.Delete(DirectoryPath);
+
         _server.Dispose();
     }
 
@@ -52,10 +87,10 @@ public class Tests
         const string sourceFileName = "source.txt";
         CreateFileAndGenerateSomeData(sourceFileName);
 
-        using var client = new Client(Port, "localhost");
+        using var client = new Client();
 
         await using var destinationStream = new MemoryStream();
-        var size = client.GetAsync(sourceFileName, destinationStream).Result;
+        var size = client.GetAsync("localhost", Port, sourceFileName, destinationStream).Result;
 
         await using var sourceStream = OpenWithDelay(sourceFileName);
         destinationStream.Seek(0, SeekOrigin.Begin);
@@ -74,10 +109,10 @@ public class Tests
     [Test]
     public async Task ListShouldWorkProperlyWithCorrectQuery()
     {
-        using var client = new Client(Port, "localhost");
+        using var client = new Client();
 
-        var (count, elements) = await client.ListAsync(DirectoryPath);
-        Assert.That(count, Is.EqualTo(4));
+        var elements = await client.ListAsync("localhost", Port, DirectoryPath);
+        Assert.That(elements.Count, Is.EqualTo(7));
         Assert.That(elements.Contains(("file1.txt", false)));
         Assert.That(elements.Contains(("file2.txt", false)));
         Assert.That(elements.Contains(("testSubdirectory1", true)));
@@ -87,20 +122,37 @@ public class Tests
     [Test]
     public async Task GetShouldReturnNegativeSizeInCaseOfIncorrectInput()
     {
-        using var client = new Client(Port, "localhost");
+        using var client = new Client();
 
         await using var destinationStream = new MemoryStream();
-        var size = client.GetAsync(Path.Combine(DirectoryPath, "notFile"), destinationStream).Result;
+        var size = client.GetAsync("localhost", Port, Path.Combine(DirectoryPath, "notFile"), destinationStream).Result;
         Assert.That(size, Is.EqualTo(-1L));
     }
 
     [Test]
-    public async Task ListShouldReturnNegativeValueInCaseOfIncorrectInput()
+    public async Task ServerShouldWorkWithMultipleClients()
     {
-        using var client = new Client(Port, "localhost");
+        const int numberOfClients = 5;
 
-        var size = (await client.ListAsync(Path.Combine(DirectoryPath, @"nonExistentPath"))).Item1;
-        Assert.That(size, Is.EqualTo(-1));
+        var clients = new Client[numberOfClients];
+
+        for (var i = 0; i < numberOfClients; i++)
+        {
+            clients[i] = new Client();
+        }
+
+        var responses = new List<(string, bool)>[numberOfClients];
+
+        for (var i = 0; i < numberOfClients; i++)
+        {
+            responses[i] = await clients[i].ListAsync("localhost", Port, _subdirectoriesPaths[i]);
+        }
+
+        for (var i = 0; i < numberOfClients; i++)
+        {
+            Assert.That(responses[i].Count, Is.EqualTo(1));
+            Assert.That(responses[i].Contains(($"file{i + 1}.txt", false)));
+        }
     }
 
     private void CreateFileAndGenerateSomeData(string fileName)

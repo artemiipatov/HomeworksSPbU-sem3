@@ -10,22 +10,14 @@ public class Client : IDisposable
 {
     private readonly TcpClient _client;
 
-    private readonly NetworkStream _networkStream;
-    private readonly StreamWriter _writer;
-    private readonly StreamReader _reader;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="Client"/> class.
     /// </summary>
     /// <param name="port">The port number of the remote host to which you intend to connect.</param>
     /// <param name="host">The DNS name of the remote host to which you intend to connect.</param>
-    public Client(int port, string host)
+    public Client()
     {
-        _client = new TcpClient(host, port);
-
-        _networkStream = _client.GetStream();
-        _writer = new StreamWriter(_networkStream);
-        _reader = new StreamReader(_networkStream);
+        _client = new TcpClient();
     }
 
     /// <summary>
@@ -43,9 +35,6 @@ public class Client : IDisposable
             return;
         }
 
-        _reader.Dispose();
-        _writer.Dispose();
-        _networkStream.Dispose();
         _client.Dispose();
 
         IsDisposed = true;
@@ -56,20 +45,25 @@ public class Client : IDisposable
     /// </summary>
     /// <param name="pathToDirectory">Path to the needed directory.</param>
     /// <returns>
-    /// Returns pair where first item is the number of elements contained in the directory,
-    /// second item is the list of elements contained in the directory.
+    /// Returns list of elements contained in the directory.
     /// List also consists of pairs, where first item is the name of the element,
     /// second item is a boolean value indicating, whether the element is folder or not.
     /// </returns>
-    public async Task<(int, List<(string, bool)>)> ListAsync(string pathToDirectory)
+    public async Task<List<(string, bool)>> ListAsync(string host, int port, string pathToDirectory)
     {
+        await _client.ConnectAsync(host, port);
+
+        var networkStream = _client.GetStream();
+        var writer = new StreamWriter(networkStream);
+        var reader = new StreamReader(networkStream);
+
         var query = $"1 {pathToDirectory}";
-        await _writer.WriteLineAsync(query);
-        await _writer.FlushAsync();
+        await writer.WriteLineAsync(query);
+        await writer.FlushAsync();
 
-        var response = await _reader.ReadLineAsync();
+        var response = await reader.ReadLineAsync();
 
-        return response is null or "-1" ? (-1, new List<(string, bool)>()) : ParseResponse(response);
+        return response is null or "-1" ? new List<(string, bool)>() : ParseResponse(response);
     }
 
     /// <summary>
@@ -79,14 +73,19 @@ public class Client : IDisposable
     /// <param name="destinationStream">Stream to which file bytes will be moved.</param>
     /// <returns>Size of downloaded file.</returns>
     /// <exception cref="DataLossException">Throws if some bytes were lost while downloading.</exception>
-    public async Task<long> GetAsync(string pathToFile, Stream destinationStream)
+    public async Task<long> GetAsync(string host, int port, string pathToFile, Stream destinationStream)
     {
+        await _client.ConnectAsync(host, port);
+
+        await using var networkStream = _client.GetStream();
+        await using var writer = new StreamWriter(networkStream);
+
         var query = $"2 {pathToFile}";
-        await _writer.WriteLineAsync(query);
-        await _writer.FlushAsync();
+        await writer.WriteLineAsync(query);
+        await writer.FlushAsync();
 
         var sizeInBytes = new byte[8];
-        if (await _networkStream.ReadAsync(sizeInBytes.AsMemory(0, 8)) != 8)
+        if (await networkStream.ReadAsync(sizeInBytes.AsMemory(0, 8)) != 8)
         {
             throw new DataLossException("Some bytes were lost.");
         }
@@ -97,12 +96,12 @@ public class Client : IDisposable
             return -1;
         }
 
-        await CopyStream(destinationStream, size);
+        await CopyStream(destinationStream, networkStream, size);
 
         return size;
     }
 
-    private async Task CopyStream(Stream destinationStream, long size)
+    private async Task CopyStream(Stream destinationStream, NetworkStream sourceStream, long size)
     {
         var bytesLeft = size;
         var chunkSize = Math.Min(1024, bytesLeft);
@@ -110,7 +109,7 @@ public class Client : IDisposable
 
         while (bytesLeft > 0)
         {
-            var readBytesCount = await _networkStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
+            var readBytesCount = await sourceStream.ReadAsync(chunkBuffer, 0, (int)chunkSize);
 
             if (readBytesCount != chunkSize)
             {
@@ -125,7 +124,7 @@ public class Client : IDisposable
         }
     }
 
-    private (int, List<(string, bool)>) ParseResponse(string response)
+    private List<(string, bool)> ParseResponse(string response)
     {
         var splitResponse = response.Split(" ");
         var numberOfElements = int.Parse(splitResponse[0]);
@@ -137,6 +136,6 @@ public class Client : IDisposable
             listOfElements.Add(pair);
         }
 
-        return (numberOfElements, listOfElements);
+        return listOfElements;
     }
 }
