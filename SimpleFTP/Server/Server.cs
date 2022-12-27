@@ -1,6 +1,4 @@
-﻿using System.Globalization;
-
-namespace Server;
+﻿namespace Server;
 
 using System.Net;
 using System.Net.Sockets;
@@ -98,7 +96,6 @@ public class Server : IDisposable
         using (socket)
         {
             await using var stream = new NetworkStream(socket);
-
             await ProcessQuery(stream);
         }
     }
@@ -110,13 +107,7 @@ public class Server : IDisposable
 
         if (query.Length != 2)
         {
-            try
-            {
-                await stream.WriteAsync(BitConverter.GetBytes(-1L).Reverse().ToArray());
-            }
-            catch (IOException)
-            {
-            }
+            await stream.WriteAsync(BitConverter.GetBytes(-1L).Reverse().ToArray());
 
             return;
         }

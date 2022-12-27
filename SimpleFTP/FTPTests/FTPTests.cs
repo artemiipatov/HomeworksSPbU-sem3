@@ -1,12 +1,10 @@
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Tests;
 
 using NUnit.Framework;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Server;
 using Client;
 
@@ -87,7 +85,7 @@ public class Tests
         const string sourceFileName = "source.txt";
         CreateFileAndGenerateSomeData(sourceFileName);
 
-        using var client = new Client();
+        var client = new Client();
 
         await using var destinationStream = new MemoryStream();
         var size = client.GetAsync("localhost", Port, sourceFileName, destinationStream).Result;
@@ -109,7 +107,7 @@ public class Tests
     [Test]
     public async Task ListShouldWorkProperlyWithCorrectQuery()
     {
-        using var client = new Client();
+        var client = new Client();
 
         var elements = await client.ListAsync("localhost", Port, DirectoryPath);
         Assert.That(elements.Count, Is.EqualTo(7));
@@ -122,7 +120,7 @@ public class Tests
     [Test]
     public async Task GetShouldReturnNegativeSizeInCaseOfIncorrectInput()
     {
-        using var client = new Client();
+        var client = new Client();
 
         await using var destinationStream = new MemoryStream();
         var size = client.GetAsync("localhost", Port, Path.Combine(DirectoryPath, "notFile"), destinationStream).Result;

@@ -1,7 +1,7 @@
-﻿string host = args[0];
-int port = int.Parse(args[1]);
+﻿var host = args[0];
+var port = int.Parse(args[1]);
 
-using var client = new Client.Client();
+var client = new Client.Client();
 
 while (true)
 {
@@ -12,6 +12,13 @@ while (true)
     }
 
     var queryArray = query.Split(" ");
+
+    if (queryArray.Length == 1
+        && queryArray[0] == "-stop")
+    {
+        break;
+    }
+
     if (queryArray.Length != 2)
     {
         Console.WriteLine("Invalid query.");
@@ -30,7 +37,7 @@ while (true)
             break;
         }
 
-        case "get":
+        case "-get":
         {
             var path = string.Empty;
 
