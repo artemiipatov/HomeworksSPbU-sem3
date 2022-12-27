@@ -7,7 +7,7 @@ using System.Linq;
 /// </summary>
 public class DenseMatrix
 {
-    private static readonly Random rnd = new ();
+    private static readonly Random Rnd = new ();
 
     private readonly int[,] _matrix;
 
@@ -57,7 +57,8 @@ public class DenseMatrix
     public static DenseMatrix MultiplyConcurrently(DenseMatrix matrix1, DenseMatrix matrix2)
     {
         var numberOfThreads = Environment.ProcessorCount / 2 <= Math.Max(matrix1.NumberOfRows, matrix2.NumberOfColumns) ?
-            Environment.ProcessorCount / 2 : Math.Max(matrix1.NumberOfRows, matrix2.NumberOfColumns);
+            Environment.ProcessorCount / 2
+            : Math.Max(matrix1.NumberOfRows, matrix2.NumberOfColumns);
         var numberOfRows = matrix1.NumberOfRows;
         var numberOfColumns = matrix2.NumberOfColumns;
         var result = new int[numberOfRows, numberOfColumns];
@@ -79,21 +80,27 @@ public class DenseMatrix
 
         for (int i = 0; i < numberOfThreads; i++)
         {
-            var initialRow = rowsThreading ? i * rowsRestriction : 0;
-            var initialColumn = rowsThreading ? 0 : i * columnsRestriction;
-            var lastRow = rowsThreading ? (i == numberOfThreads - 1 ? numberOfRows : (i + 1) * rowsRestriction) : numberOfRows;
-            var lastColumn = rowsThreading ? numberOfColumns : (i == numberOfThreads - 1 ? numberOfColumns : (i + 1) * columnsRestriction);
+            var initialRow = rowsThreading ?
+                i * rowsRestriction
+                : 0;
 
-            threads[i] = new Thread(() =>
-            {
-                for (var row = initialRow; row < lastRow; row++)
-                {
-                    for (var column = initialColumn; column < lastColumn; column++)
-                    {
-                        result[row, column] = DotProduct(matrix1, matrix2, row, column);
-                    }
-                }
-            });
+            var initialColumn = rowsThreading ?
+                0
+                : i * columnsRestriction;
+
+            var lastRow = rowsThreading ?
+                (i == numberOfThreads - 1 ?
+                    numberOfRows
+                    : (i + 1) * rowsRestriction)
+                : numberOfRows;
+
+            var lastColumn = rowsThreading ?
+                numberOfColumns
+                : (i == numberOfThreads - 1 ?
+                    numberOfColumns
+                    : (i + 1) * columnsRestriction);
+
+            threads[i] = new Thread(() => ThreadAction(initialRow, initialColumn, lastRow, lastColumn, matrix1, matrix2, result));
         }
 
         foreach (var thread in threads)
@@ -145,12 +152,30 @@ public class DenseMatrix
         {
             for (var column = 0; column < size.Item2; column++)
             {
-                file.Write(rnd.Next(0, 3) + (column == size.Item2 - 1 ? string.Empty : " "));
+                file.Write(Rnd.Next(0, 3) + (column == size.Item2 - 1 ? string.Empty : " "));
             }
 
             if (row < size.Item1 - 1)
             {
                 file.WriteLine();
+            }
+        }
+    }
+
+    private static void ThreadAction(
+        int initialRow,
+        int initialColumn,
+        int lastRow,
+        int lastColumn,
+        DenseMatrix matrix1,
+        DenseMatrix matrix2,
+        int[,] result)
+    {
+        for (var row = initialRow; row < lastRow; row++)
+        {
+            for (var column = initialColumn; column < lastColumn; column++)
+            {
+                result[row, column] = DotProduct(matrix1, matrix2, row, column);
             }
         }
     }

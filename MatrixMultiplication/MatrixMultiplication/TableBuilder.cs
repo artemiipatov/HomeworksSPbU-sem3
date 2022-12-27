@@ -1,5 +1,7 @@
 ﻿namespace MatrixMultiplication;
 
+using System.Globalization;
+
 /// <summary>
 /// Builds a table for comparing concurrent and serial multiplication statistics.
 /// </summary>
@@ -35,10 +37,10 @@ public static class TableBuilder
         using var file = new StreamWriter(File.OpenWrite(path));
         file.BaseStream.Seek(0, SeekOrigin.End);
 
-        var spacesAfterExpectedValue1 = new string(' ', 18 - expectedValue1.ToString().Length);
-        var spacesAfterDeviation1 = new string(' ', 24 - deviation1.ToString().Length);
-        var spacesAfterExpectedValue2 = new string(' ', 18 - expectedValue2.ToString().Length);
-        var spacesAfterDeviation2 = new string(' ', 24 - deviation2.ToString().Length);
+        var spacesAfterExpectedValue1 = new string(' ', 18 - expectedValue1.ToString(CultureInfo.CurrentCulture).Length);
+        var spacesAfterDeviation1 = new string(' ', 24 - deviation1.ToString(CultureInfo.CurrentCulture).Length);
+        var spacesAfterExpectedValue2 = new string(' ', 18 - expectedValue2.ToString(CultureInfo.CurrentCulture).Length);
+        var spacesAfterDeviation2 = new string(' ', 24 - deviation2.ToString(CultureInfo.CurrentCulture).Length);
 
         file.WriteLine($"| {size.Item1}x{size.Item2} |{expectedValue1}{spacesAfterExpectedValue1}|{deviation1}{spacesAfterDeviation1}|" +
                        $"{expectedValue2}{spacesAfterExpectedValue2}|{deviation2}{spacesAfterDeviation2}|");
