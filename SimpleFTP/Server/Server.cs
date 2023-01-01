@@ -60,6 +60,9 @@ public class Server : IDisposable
                 _tasks.Add(Task.Run(async () => await ProcessQueriesFromSpecificSocket(socket), token));
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
         finally
         {
             Task.WaitAll(_tasks.ToArray());

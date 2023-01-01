@@ -1,10 +1,11 @@
 ﻿int port = int.Parse(args[0]);
 
 var server = new Server.Server(port);
-Task.Run(async () => await server.RunAsync());
+var serverTask = server.RunAsync();
 
 if (Console.ReadKey().Key == ConsoleKey.Enter)
 {
     server.Stop();
+    await serverTask;
     server.Dispose();
 }

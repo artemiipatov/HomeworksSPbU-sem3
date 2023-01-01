@@ -21,26 +21,19 @@ public class Client
     /// </returns>
     public async Task<List<(string, bool)>> ListAsync(string host, int port, string pathToDirectory)
     {
-        var client = new TcpClient();
+        using var client = new TcpClient();
         await client.ConnectAsync(host, port);
 
-        try
-        {
-            await using var networkStream = client.GetStream();
-            await using var writer = new StreamWriter(networkStream);
-            using var reader = new StreamReader(networkStream);
+        await using var networkStream = client.GetStream();
+        await using var writer = new StreamWriter(networkStream);
+        using var reader = new StreamReader(networkStream);
 
-            var query = $"1 {pathToDirectory}";
-            await writer.WriteLineAsync(query);
-            await writer.FlushAsync();
+        var query = $"1 {pathToDirectory}";
+        await writer.WriteLineAsync(query);
+        await writer.FlushAsync();
 
-            var response = await reader.ReadLineAsync();
-            return response is null or "-1" ? new List<(string, bool)>() : ParseResponse(response);
-        }
-        finally
-        {
-            client.Close();
-        }
+        var response = await reader.ReadLineAsync();
+        return response is null or "-1" ? new List<(string, bool)>() : ParseResponse(response);
     }
 
     /// <summary>

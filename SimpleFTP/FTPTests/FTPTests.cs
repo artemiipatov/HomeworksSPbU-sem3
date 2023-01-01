@@ -39,10 +39,12 @@ public class Tests
 
     private readonly Server _server = new (Port);
 
+    private Task serverTask = new (() => { });
+
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        Task.Run(async () => await _server.RunAsync());
+        serverTask = _server.RunAsync();
         Directory.CreateDirectory(DirectoryPath);
 
         foreach (var subdirectory in _subdirectoriesPaths)
@@ -60,7 +62,7 @@ public class Tests
     }
 
     [OneTimeTearDown]
-    public void OneTimeTearDown()
+    public async Task OneTimeTearDown()
     {
         foreach (var file in _subdirectoriesFiles)
         {
@@ -76,6 +78,8 @@ public class Tests
         File.Delete(_fileName2);
         Directory.Delete(DirectoryPath);
 
+        _server.Stop();
+        await serverTask;
         _server.Dispose();
     }
 
